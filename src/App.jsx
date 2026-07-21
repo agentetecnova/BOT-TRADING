@@ -13,6 +13,7 @@ export default function App() {
   // CVD and Liquidations trackers
   const tradesRef = useRef([]);
   const liqsRef = useRef([]);
+  const priceHistoryRef = useRef([]);
   const [cvd5m, setCvd5m] = useState(0);
   const [recentLiqs, setRecentLiqs] = useState([]);
   const [liqStats5m, setLiqStats5m] = useState({ longLiqs: 0, shortLiqs: 0 });
@@ -61,6 +62,7 @@ export default function App() {
             if (prev !== null && prev !== newPrice) {
               setPriceFlash(newPrice > prev ? 'up' : 'down');
             }
+            priceHistoryRef.current.push({ timestamp: Date.now(), price: newPrice });
             return newPrice;
           });
 
@@ -158,6 +160,9 @@ export default function App() {
       const longsSum = liqsRef.current.filter(l => l.type === 'LONG').reduce((acc, l) => acc + l.amount, 0);
       const shortsSum = liqsRef.current.filter(l => l.type === 'SHORT').reduce((acc, l) => acc + l.amount, 0);
       setLiqStats5m({ longLiqs: Math.round(longsSum), shortLiqs: Math.round(shortsSum) });
+
+      // 3. Prune price history
+      priceHistoryRef.current = priceHistoryRef.current.filter(p => p.timestamp > threshold);
     }, 1000);
 
     return () => clearInterval(interval);
@@ -337,6 +342,48 @@ export default function App() {
   const stats2 = getStatsByStrategy('Estrategia 2');
   const stats3 = getStatsByStrategy('Estrategia 3');
 
+  // Calculate rolling CVD divergence situation
+  const getCvdStatus = () => {
+    if (!btcPrice) return { label: '⚪ Iniciando...', color: 'var(--color-text-muted)' };
+    
+    const now = Date.now();
+    const threshold = now - 5 * 60 * 1000; // 5 minutes ago
+    
+    const pricePoints = priceHistoryRef.current.filter(p => p.timestamp >= threshold);
+    const oldestPoint = pricePoints[0];
+    const price5mAgo = oldestPoint ? oldestPoint.price : btcPrice;
+    
+    const priceDiffPercent = ((btcPrice - price5mAgo) / price5mAgo) * 100;
+    
+    // Thresholds
+    const cvdThreshold = 10000; // $10k USD volume delta
+    const priceThreshold = 0.05; // 0.05% price change
+    
+    if (Math.abs(cvd5m) < cvdThreshold) {
+      return { label: '⚪ Flujo Neutral', color: 'var(--color-text-muted)' };
+    }
+    
+    if (cvd5m >= cvdThreshold) {
+      if (priceDiffPercent < -priceThreshold) {
+        return { label: '⚡ Divergencia Alcista', color: 'var(--color-up)' };
+      }
+      if (priceDiffPercent > priceThreshold) {
+        return { label: '🟢 Presión Alcista', color: 'var(--color-up)' };
+      }
+      return { label: '🟢 Acumulación Pasiva', color: 'var(--color-up)' };
+    } else { // cvd5m <= -cvdThreshold
+      if (priceDiffPercent > priceThreshold) {
+        return { label: '⚠️ Divergencia Bajista', color: 'var(--color-down)' };
+      }
+      if (priceDiffPercent < -priceThreshold) {
+        return { label: '🔴 Presión Bajista', color: 'var(--color-down)' };
+      }
+      return { label: '🔴 Distribución Pasiva', color: 'var(--color-down)' };
+    }
+  };
+
+  const cvdStatus = getCvdStatus();
+
   return (
     <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1 }}>
       
@@ -389,7 +436,7 @@ export default function App() {
             <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: cvd5m >= 0 ? 'var(--color-up)' : 'var(--color-down)', margin: '0.15rem 0' }}>
               {cvd5m >= 0 ? '+' : ''}{cvd5m.toLocaleString('en-US')}
             </span>
-            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>Fuerza Compra/Venta</span>
+            <span style={{ fontSize: '0.65rem', color: cvdStatus.color, fontWeight: 700 }}>{cvdStatus.label}</span>
           </div>
 
           {/* Liquidations (5m) Widget */}
