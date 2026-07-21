@@ -93,8 +93,17 @@ export default function App() {
       }
     };
 
-    // 3. Futures forceOrder stream for Liquidations
-    const wsFutures = new WebSocket('wss://fstream.binance.com/ws/btcusdt@forceOrder');
+    // 3. Futures forceOrder stream for Liquidations (using updated April 2026 Binance endpoint)
+    const wsFutures = new WebSocket('wss://fstream.binance.com/market/ws/btcusdt@forceOrder');
+    
+    wsFutures.onopen = () => {
+      addLog('Red', 'Conectado a Binance WebSockets (Liquidaciones Futuros)');
+    };
+
+    wsFutures.onerror = () => {
+      addLog('Red', 'Error en conexión WebSocket Futuros');
+    };
+
     wsFutures.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
