@@ -359,7 +359,7 @@ class TechnicalAnalysisService {
     let hasSignal = false;
     let signal = null;
 
-    if (pUp >= 70) {
+    if (pUp > 50) {
       hasSignal = true;
       const recentLows = candles.slice(candles.length - 5).map(c => c.low);
       let sl = Math.min(...recentLows);
@@ -380,7 +380,7 @@ class TechnicalAnalysisService {
         profitPercent,
         reasons: [...reasons]
       };
-    } else if (pDown >= 70) {
+    } else if (pDown > 50) {
       hasSignal = true;
       const recentHighs = candles.slice(candles.length - 5).map(c => c.high);
       let sl = Math.max(...recentHighs);
@@ -535,7 +535,7 @@ class TechnicalAnalysisService {
     let signal = null;
     const lastPrice15m = klinesMap['15m'][klinesMap['15m'].length - 1].close;
 
-    if (pUp >= 65 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
+    if (pUp > 50 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
       hasSignal = true;
       const minEma = Math.min(emaValues15m.ema50, emaValues15m.ema350, emaValues15m.ema700);
       let sl = minEma * 0.998; // 0.2% below min EMA
@@ -558,7 +558,7 @@ class TechnicalAnalysisService {
         profitPercent,
         reasons: [...details].filter(d => d.includes('[15m]') || d.includes('[1h]') || d.includes('[4h]'))
       };
-    } else if (pDown >= 65 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
+    } else if (pDown > 50 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
       hasSignal = true;
       const maxEma = Math.max(emaValues15m.ema50, emaValues15m.ema350, emaValues15m.ema700);
       let sl = maxEma * 1.002; // 0.2% above max EMA

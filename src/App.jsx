@@ -228,10 +228,10 @@ export default function App() {
     return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  // Calculate Win Rate statistics
-  const getStats = () => {
-    const resolved = signalsHistory.filter(s => s.status === 'TP' || s.status === 'SL');
-    if (resolved.length === 0) return { winRate: 0, tpCount: 0, slCount: 0, total: 0 };
+  // Calculate Win Rate statistics by strategy
+  const getStatsByStrategy = (stratName) => {
+    const resolved = signalsHistory.filter(s => s.strategy === stratName && (s.status === 'TP' || s.status === 'SL'));
+    if (resolved.length === 0) return { winRate: null, tpCount: 0, slCount: 0, total: 0 };
 
     const tpCount = resolved.filter(s => s.status === 'TP').length;
     const slCount = resolved.filter(s => s.status === 'SL').length;
@@ -240,7 +240,9 @@ export default function App() {
     return { winRate, tpCount, slCount, total: resolved.length };
   };
 
-  const stats = getStats();
+  const stats1 = getStatsByStrategy('Estrategia 1');
+  const stats2 = getStatsByStrategy('Estrategia 2');
+  const stats3 = getStatsByStrategy('Estrategia 3');
 
   return (
     <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1 }}>
@@ -324,7 +326,9 @@ export default function App() {
           <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--color-primary)', fontWeight: 700, letterSpacing: '0.05em' }}>Estrategia 1</span>
+                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--color-primary)', fontWeight: 700, letterSpacing: '0.05em' }}>
+                  Estrategia 1 {stats1.winRate !== null ? `• WR: ${stats1.winRate}%` : '• WR: --'}
+                </span>
                 <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>⚡ Confluencia Rápida (15m)</h3>
               </div>
               {strat1Data && (
@@ -383,7 +387,9 @@ export default function App() {
           <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#10b981', fontWeight: 700, letterSpacing: '0.05em' }}>Estrategia 2</span>
+                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#10b981', fontWeight: 700, letterSpacing: '0.05em' }}>
+                  Estrategia 2 {stats2.winRate !== null ? `• WR: ${stats2.winRate}%` : '• WR: --'}
+                </span>
                 <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>💎 Pro Trader (EMAs + RSI 7)</h3>
               </div>
               {strat2Data && (
@@ -442,7 +448,9 @@ export default function App() {
           <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#f59e0b', fontWeight: 700, letterSpacing: '0.05em' }}>Estrategia 3</span>
+                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#f59e0b', fontWeight: 700, letterSpacing: '0.05em' }}>
+                  Estrategia 3 {stats3.winRate !== null ? `• WR: ${stats3.winRate}%` : '• WR: --'}
+                </span>
                 <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>🚨 Barridas de Liquidez (15m)</h3>
               </div>
               {strat3Data && (
@@ -532,25 +540,51 @@ export default function App() {
           </button>
         </div>
 
-        {/* Stats metrics widgets */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-          <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Tasa de Acierto</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: stats.winRate >= 60 ? 'var(--color-up)' : stats.winRate === 0 ? 'var(--color-text-muted)' : 'var(--color-down)', marginTop: '0.25rem' }}>
-              {stats.total > 0 ? `${stats.winRate}%` : '--'}
+        {/* Stats metrics widgets grouped by Strategy */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+          
+          {/* Stats Estrategia 1 */}
+          <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--color-primary)', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 1 (Confluencia)</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats1.winRate !== null ? (stats1.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                {stats1.winRate !== null ? `${stats1.winRate}%` : '--'}
+              </span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                {stats1.tpCount} TP / {stats1.slCount} SL
+              </span>
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.15rem' }}>Basado en {stats.total} operaciones cerradas</div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats1.total} señales resueltas</div>
           </div>
-          <div style={{ padding: '1rem', background: 'rgba(0, 230, 118, 0.01)', border: '1px solid rgba(0, 230, 118, 0.03)', borderRadius: '12px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-up)', textTransform: 'uppercase', fontWeight: 600 }}>Aciertos (Take Profit)</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--color-up)', marginTop: '0.25rem' }}>{stats.tpCount}</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.15rem' }}>Trades finalizados con éxito</div>
+
+          {/* Stats Estrategia 2 */}
+          <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: '0.7rem', color: '#10b981', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 2 (Pro Trader)</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats2.winRate !== null ? (stats2.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                {stats2.winRate !== null ? `${stats2.winRate}%` : '--'}
+              </span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                {stats2.tpCount} TP / {stats2.slCount} SL
+              </span>
+            </div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats2.total} señales resueltas</div>
           </div>
-          <div style={{ padding: '1rem', background: 'rgba(255, 23, 68, 0.01)', border: '1px solid rgba(255, 23, 68, 0.03)', borderRadius: '12px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-down)', textTransform: 'uppercase', fontWeight: 600 }}>Pérdidas (Stop Loss)</div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--color-down)', marginTop: '0.25rem' }}>{stats.slCount}</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.15rem' }}>Trades finalizados en pérdida</div>
+
+          {/* Stats Estrategia 3 */}
+          <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: '0.7rem', color: '#f59e0b', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 3 (Barridas)</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats3.winRate !== null ? (stats3.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                {stats3.winRate !== null ? `${stats3.winRate}%` : '--'}
+              </span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                {stats3.tpCount} TP / {stats3.slCount} SL
+              </span>
+            </div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats3.total} señales resueltas</div>
           </div>
+
         </div>
 
         {/* Signals History Table */}
