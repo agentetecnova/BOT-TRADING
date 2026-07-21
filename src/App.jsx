@@ -17,6 +17,7 @@ export default function App() {
   const [cvd5m, setCvd5m] = useState(0);
   const [recentLiqs, setRecentLiqs] = useState([]);
   const [liqStats5m, setLiqStats5m] = useState({ longLiqs: 0, shortLiqs: 0 });
+  const [futuresStatus, setFuturesStatus] = useState('connecting');
 
   // Technical Analysis states
   const [strat1Data, setStrat1Data] = useState(null);
@@ -99,11 +100,17 @@ export default function App() {
     const wsFutures = new WebSocket('wss://fstream.binance.com/market/ws/btcusdt@forceOrder');
     
     wsFutures.onopen = () => {
+      setFuturesStatus('connected');
       addLog('Red', 'Conectado a Binance WebSockets (Liquidaciones Futuros)');
     };
 
     wsFutures.onerror = () => {
+      setFuturesStatus('failed');
       addLog('Red', 'Error en conexión WebSocket Futuros');
+    };
+
+    wsFutures.onclose = () => {
+      setFuturesStatus('disconnected');
     };
 
     wsFutures.onmessage = (event) => {
@@ -431,23 +438,38 @@ export default function App() {
           </div>
 
           {/* CVD (5m) Widget */}
-          <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
+          <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '180px', textAlign: 'center' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>CVD Delta (5m)</span>
             <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: cvd5m >= 0 ? 'var(--color-up)' : 'var(--color-down)', margin: '0.15rem 0' }}>
               {cvd5m >= 0 ? '+' : ''}{cvd5m.toLocaleString('en-US')}
             </span>
             <span style={{ fontSize: '0.65rem', color: cvdStatus.color, fontWeight: 700 }}>{cvdStatus.label}</span>
+            <span style={{ fontSize: '0.55rem', color: 'var(--color-text-muted)', marginTop: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem', lineHeight: '1.2' }}>
+              Suma de compras menos ventas a mercado. Divergencia alcista anticipa rebotes; bajista anticipa correcciones.
+            </span>
           </div>
 
           {/* Liquidations (5m) Widget */}
-          <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '170px' }}>
+          <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '180px', textAlign: 'center' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Liquidado (5m)</span>
-            <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: '0.15rem 0' }}>
-              <span style={{ color: 'var(--color-down)' }}>${Math.round(liqStats5m.longLiqs / 1000)}k L</span>
-              {' / '}
-              <span style={{ color: 'var(--color-up)' }}>${Math.round(liqStats5m.shortLiqs / 1000)}k S</span>
+            
+            {futuresStatus === 'failed' ? (
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-down)', fontWeight: 700, margin: '0.45rem 0' }}>
+                ⚠️ ISP BLOQUEADO
+              </span>
+            ) : (
+              <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: '0.15rem 0' }}>
+                <span style={{ color: 'var(--color-down)' }}>${Math.round(liqStats5m.longLiqs / 1000)}k L</span>
+                {' / '}
+                <span style={{ color: 'var(--color-up)' }}>${Math.round(liqStats5m.shortLiqs / 1000)}k S</span>
+              </span>
+            )}
+
+            <span style={{ fontSize: '0.55rem', color: 'var(--color-text-muted)', marginTop: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem', lineHeight: '1.2' }}>
+              {futuresStatus === 'failed' 
+                ? 'Binance Futures está bloqueado en tu red. Se requiere usar VPN.' 
+                : 'Volumen de traders liquidados. Liquidar LONGs frena caídas; SHORTs impulsa subidas.'}
             </span>
-            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>Futuros Binance</span>
           </div>
 
           {/* Connection status dot */}
