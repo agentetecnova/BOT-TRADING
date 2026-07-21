@@ -826,7 +826,18 @@ class TechnicalAnalysisService {
     const bbw = (lastUpper - lastLower) / lastMiddle;
     const isSqueeze = bbw < 0.05; // Volatility Squeeze if width < 5%
 
-    // 3. Breakout signals
+    // 3. Probability & Scoring based on alignment
+    let pUp = 50;
+    let pDown = 50;
+    if (isBullishMacro) {
+      pUp = isSqueeze ? 65 : 55;
+      pDown = 100 - pUp;
+    } else {
+      pDown = isSqueeze ? 65 : 55;
+      pUp = 100 - pDown;
+    }
+
+    // 4. Signal trigger (above average > 50%, matching Strategy 1 & 2 logic)
     let hasSignal = false;
     let signal = null;
     const reasons = [];
@@ -838,56 +849,52 @@ class TechnicalAnalysisService {
 
     if (isSqueeze) {
       reasons.push(`Compresión de Volatilidad Extrema activa (Ancho de bandas: ${(bbw * 100).toFixed(2)}%)`);
-      
-      // Look for breakout triggers on daily closes
-      if (isBullishMacro && lastPrice >= lastUpper * 0.995) {
-        hasSignal = true;
-        const sl = lastLower; // Stop loss at the opposite band
-        const risk = lastPrice - sl;
-        const tp = lastPrice + (3 * risk); // R:R 1:3
-        const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
-        const profitPercent = parseFloat((((tp - lastPrice) / lastPrice) * 100).toFixed(2));
-
-        signal = {
-          type: 'LONG',
-          entry: lastPrice,
-          sl,
-          tp,
-          riskPercent,
-          profitPercent,
-          reasons: [...reasons, 'Ruptura Alcista del canal de compresión de Bollinger']
-        };
-      } else if (!isBullishMacro && lastPrice <= lastLower * 1.005) {
-        hasSignal = true;
-        const sl = lastUpper;
-        const risk = sl - lastPrice;
-        const tp = lastPrice - (3 * risk); // R:R 1:3
-        const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
-        const profitPercent = parseFloat((((lastPrice - tp) / lastPrice) * 100).toFixed(2));
-
-        signal = {
-          type: 'SHORT',
-          entry: lastPrice,
-          sl,
-          tp,
-          riskPercent,
-          profitPercent,
-          reasons: [...reasons, 'Ruptura Bajista del canal de compresión de Bollinger']
-        };
-      }
     } else {
       reasons.push(`Volatilidad normal (Ancho de bandas: ${(bbw * 100).toFixed(2)}%)`);
     }
 
-    // Probability & Scoring based on alignment
-    let pUp = 50;
-    let pDown = 50;
-    if (isBullishMacro) {
-      pUp = isSqueeze ? 65 : 55;
-      pDown = 100 - pUp;
-    } else {
-      pDown = isSqueeze ? 65 : 55;
-      pUp = 100 - pDown;
+    if (pUp > 50) {
+      hasSignal = true;
+      let sl = bandAvg;
+      // Clamp stop loss between 1% and 3.5% for daily swing limits
+      if (lastPrice - sl < lastPrice * 0.01 || lastPrice - sl > lastPrice * 0.035) {
+        sl = lastPrice * 0.98; // 2% standard swing stop loss
+      }
+      const risk = lastPrice - sl;
+      const tp = lastPrice + (2 * risk); // R:R 1:2
+      const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+      const profitPercent = parseFloat((((tp - lastPrice) / lastPrice) * 100).toFixed(2));
+
+      signal = {
+        type: 'LONG',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Ruptura / Continuidad de Tendencia Macro Alcista']
+      };
+    } else if (pDown > 50) {
+      hasSignal = true;
+      let sl = bandAvg;
+      // Clamp stop loss between 1% and 3.5% for daily swing limits
+      if (sl - lastPrice < lastPrice * 0.01 || sl - lastPrice > lastPrice * 0.035) {
+        sl = lastPrice * 1.02; // 2% standard swing stop loss
+      }
+      const risk = sl - lastPrice;
+      const tp = lastPrice - (2 * risk); // R:R 1:2
+      const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+      const profitPercent = parseFloat((((lastPrice - tp) / lastPrice) * 100).toFixed(2));
+
+      signal = {
+        type: 'SHORT',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Ruptura / Continuidad de Tendencia Macro Bajista']
+      };
     }
 
     return {
