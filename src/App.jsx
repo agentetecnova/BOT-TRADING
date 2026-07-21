@@ -10,6 +10,13 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [logs, setLogs] = useState([]);
 
+  // CVD and Liquidations trackers
+  const tradesRef = useRef([]);
+  const liqsRef = useRef([]);
+  const [cvd5m, setCvd5m] = useState(0);
+  const [recentLiqs, setRecentLiqs] = useState([]);
+  const [liqStats5m, setLiqStats5m] = useState({ longLiqs: 0, shortLiqs: 0 });
+
   // Technical Analysis states
   const [strat1Data, setStrat1Data] = useState(null);
   const [strat2Data, setStrat2Data] = useState(null);
@@ -34,12 +41,13 @@ export default function App() {
 
   // Set up live price WebSocket connection (Binance WS for BTCUSDT)
   useEffect(() => {
+    // 1. Spot ticker (Price and 24h change)
     const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@ticker');
     setConnectionStatus('connecting');
 
     ws.onopen = () => {
       setConnectionStatus('connected');
-      addLog('Red', 'Conectado a Binance WebSockets (BTCUSDT)');
+      addLog('Red', 'Conectado a Binance WebSockets (Ticker Spot)');
     };
 
     ws.onmessage = (event) => {
@@ -65,17 +73,85 @@ export default function App() {
 
     ws.onerror = () => {
       setConnectionStatus('disconnected');
-      addLog('Red', 'Error en conexión WebSocket');
+      addLog('Red', 'Error en conexión WebSocket Spot');
     };
 
-    ws.onclose = () => {
-      setConnectionStatus('disconnected');
-      addLog('Red', 'Conexión WebSocket cerrada');
+    // 2. Spot trade stream for CVD
+    const wsTrade = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+    wsTrade.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data && data.q && data.p) {
+          const p = parseFloat(data.p);
+          const q = parseFloat(data.q);
+          const isSell = data.m; // buyer is market maker = aggressive seller
+          const delta = q * p * (isSell ? -1 : 1);
+          tradesRef.current.push({ timestamp: Date.now(), delta });
+        }
+      } catch (err) {
+        console.error('Error parsing WS trade message:', err);
+      }
+    };
+
+    // 3. Futures forceOrder stream for Liquidations
+    const wsFutures = new WebSocket('wss://fstream.binance.com/ws/btcusdt@forceOrder');
+    wsFutures.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data && data.o) {
+          const p = parseFloat(data.o.p);
+          const q = parseFloat(data.o.q);
+          const amount = q * p;
+          const side = data.o.S; // BUY or SELL
+          const type = side === 'SELL' ? 'LONG' : 'SHORT'; // SELL liquidation is LONG liquidated, BUY liquidation is SHORT liquidated
+
+          const newLiq = {
+            id: `${Date.now()}_${Math.random()}`,
+            timestamp: Date.now(),
+            type,
+            amount,
+            price: p
+          };
+
+          liqsRef.current.push(newLiq);
+
+          // Alert in logs and UI if it is significant (>= $5,000)
+          if (amount >= 5000) {
+            setRecentLiqs(prev => [newLiq, ...prev].slice(0, 5));
+            addLog('Liquidación', `🔥 ${type} liqu. $${Math.round(amount).toLocaleString()} a $${p.toLocaleString()}`, type === 'LONG' ? 'down' : 'up');
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing WS forceOrder message:', err);
+      }
     };
 
     return () => {
       ws.close();
+      wsTrade.close();
+      wsFutures.close();
     };
+  }, []);
+
+  // Sliding window calculations for CVD & Liquidations (1-second loop)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const threshold = now - 5 * 60 * 1000; // 5 minutes ago
+
+      // 1. Calculate CVD
+      tradesRef.current = tradesRef.current.filter(t => t.timestamp > threshold);
+      const sumCVD = tradesRef.current.reduce((acc, t) => acc + t.delta, 0);
+      setCvd5m(Math.round(sumCVD));
+
+      // 2. Calculate Liquidations
+      liqsRef.current = liqsRef.current.filter(l => l.timestamp > threshold);
+      const longsSum = liqsRef.current.filter(l => l.type === 'LONG').reduce((acc, l) => acc + l.amount, 0);
+      const shortsSum = liqsRef.current.filter(l => l.type === 'SHORT').reduce((acc, l) => acc + l.amount, 0);
+      setLiqStats5m({ longLiqs: Math.round(longsSum), shortLiqs: Math.round(shortsSum) });
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Monitor price updates to check and resolve active signals
@@ -139,7 +215,15 @@ export default function App() {
         '4h': k4h
       };
       const res2 = technicalAnalysisService.runStrategy2(klinesMap);
-      const res3 = technicalAnalysisService.runStrategy3(klinesMap);
+
+      // Compute fresh liquidation stats for Strategy 3 confluences
+      const now = Date.now();
+      const threshold = now - 5 * 60 * 1000;
+      const recentL = liqsRef.current.filter(l => l.timestamp > threshold);
+      const longLiqs = Math.round(recentL.filter(l => l.type === 'LONG').reduce((acc, l) => acc + l.amount, 0));
+      const shortLiqs = Math.round(recentL.filter(l => l.type === 'SHORT').reduce((acc, l) => acc + l.amount, 0));
+      
+      const res3 = technicalAnalysisService.runStrategy3(klinesMap, { longLiqs, shortLiqs });
 
       setStrat1Data(res1);
       setStrat2Data(res2);
@@ -256,15 +340,31 @@ export default function App() {
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', marginTop: '0.25rem' }}>
             Terminal predictiva especializada y motor de señales en vivo para Bitcoin.
           </p>
+          
+          {/* Live Liquidations Ticker */}
+          {recentLiqs.length > 0 && (
+            <div style={{ display: 'flex', gap: '0.75rem', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.8rem', color: '#cbd5e1', padding: '0.35rem 0.65rem', background: 'rgba(0,0,0,0.15)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.02)', marginTop: '0.75rem', alignItems: 'center', maxWidth: '500px' }}>
+              <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em' }}>⚡ RECIENTES:</span>
+              <div style={{ display: 'flex', gap: '1rem', overflow: 'hidden' }}>
+                {recentLiqs.slice(0, 3).map((l) => (
+                  <span key={l.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <span style={{ color: l.type === 'LONG' ? 'var(--color-down)' : 'var(--color-up)', fontWeight: 700 }}>{l.type}</span>
+                    <span>${Math.round(l.amount).toLocaleString()}</span>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>a ${l.price.toLocaleString()}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Connection status and live price overview */}
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
           
           {/* Live Price Widget */}
-          <div className={`glass-panel ${priceFlash ? `flash-${priceFlash}` : ''}`} style={{ padding: '0.75rem 1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '180px', transition: 'all 0.3s ease' }}>
+          <div className={`glass-panel ${priceFlash ? `flash-${priceFlash}` : ''}`} style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '160px', transition: 'all 0.3s ease' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Precio BTC/USDT</span>
-            <span className="font-mono" style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: '0.15rem 0' }}>
+            <span className="font-mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: '0.15rem 0' }}>
               {btcPrice ? `$${formatPrice(btcPrice)}` : 'Cargando...'}
             </span>
             {btcChange24h !== null && (
@@ -274,12 +374,32 @@ export default function App() {
             )}
           </div>
 
-          {/* Connection badge */}
+          {/* CVD (5m) Widget */}
+          <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '150px' }}>
+            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>CVD Delta (5m)</span>
+            <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: cvd5m >= 0 ? 'var(--color-up)' : 'var(--color-down)', margin: '0.15rem 0' }}>
+              {cvd5m >= 0 ? '+' : ''}{cvd5m.toLocaleString('en-US')}
+            </span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>Fuerza Compra/Venta</span>
+          </div>
+
+          {/* Liquidations (5m) Widget */}
+          <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '170px' }}>
+            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Liquidado (5m)</span>
+            <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: '0.15rem 0' }}>
+              <span style={{ color: 'var(--color-down)' }}>${Math.round(liqStats5m.longLiqs / 1000)}k L</span>
+              {' / '}
+              <span style={{ color: 'var(--color-up)' }}>${Math.round(liqStats5m.shortLiqs / 1000)}k S</span>
+            </span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>Futuros Binance</span>
+          </div>
+
+          {/* Connection status dot */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--glass-border)', height: '100%' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block', background: connectionStatus === 'connected' ? 'var(--color-up)' : connectionStatus === 'connecting' ? '#eab308' : 'var(--color-down)' }}></span>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block', background: connectionStatus === 'connected' ? 'var(--color-up)' : connectionStatus === 'connecting' ? '#eab308' : 'var(--color-down)' }}></span>
             <div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Binance Feed</div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{connectionStatus === 'connected' ? 'Conectado' : connectionStatus === 'connecting' ? 'Conectando...' : 'Desconectado'}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Binance WS</div>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{connectionStatus === 'connected' ? 'OK' : connectionStatus === 'connecting' ? 'SYNC' : 'DOWN'}</div>
             </div>
           </div>
 

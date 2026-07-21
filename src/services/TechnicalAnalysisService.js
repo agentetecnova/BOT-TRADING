@@ -598,7 +598,7 @@ class TechnicalAnalysisService {
    * Run Strategy 3: Algoritmo de Alta Probabilidad (Señales de Trading)
    * Analyzes liquidity sweeps on 15m, trend on 1h (EMA 350), and RSI 7 divergences
    */
-  runStrategy3(klinesMap) {
+  runStrategy3(klinesMap, liqStats5m = { longLiqs: 0, shortLiqs: 0 }) {
     const k1h = klinesMap['1h'];
     const k15m = klinesMap['15m'];
 
@@ -716,6 +716,12 @@ class TechnicalAnalysisService {
       if (stars === 2) prob = 73;
       if (stars === 3) prob = 85;
 
+      if (liqStats5m.longLiqs >= 30000) {
+        stars = 3;
+        prob = 85;
+        reasons.push(`Pánico Minorista: $${liqStats5m.longLiqs.toLocaleString()} liquidados en LONGs (5m)`);
+      }
+
       activeSignal = {
         type: 'LONG',
         stars,
@@ -754,6 +760,12 @@ class TechnicalAnalysisService {
       let prob = 60;
       if (stars === 2) prob = 73;
       if (stars === 3) prob = 85;
+
+      if (liqStats5m.shortLiqs >= 30000) {
+        stars = 3;
+        prob = 85;
+        reasons.push(`Pánico Minorista: $${liqStats5m.shortLiqs.toLocaleString()} liquidados en SHORTs (5m)`);
+      }
 
       activeSignal = {
         type: 'SHORT',
