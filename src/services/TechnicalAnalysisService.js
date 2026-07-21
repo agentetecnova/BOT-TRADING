@@ -355,12 +355,62 @@ class TechnicalAnalysisService {
     else if (pDown >= 70) bias = 'BAJISTA FUERTE';
     else if (pDown >= 55) bias = 'BAJISTA MODERADO';
 
+    // Generate signal
+    let hasSignal = false;
+    let signal = null;
+
+    if (pUp >= 70) {
+      hasSignal = true;
+      const recentLows = candles.slice(candles.length - 5).map(c => c.low);
+      let sl = Math.min(...recentLows);
+      if (lastPrice - sl < lastPrice * 0.003) {
+        sl = lastPrice * 0.997; // 0.3% min distance
+      }
+      const risk = lastPrice - sl;
+      const tp = lastPrice + (2 * risk); // R:R 1:2
+      const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+      const profitPercent = parseFloat((((tp - lastPrice) / lastPrice) * 100).toFixed(2));
+
+      signal = {
+        type: 'LONG',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons]
+      };
+    } else if (pDown >= 70) {
+      hasSignal = true;
+      const recentHighs = candles.slice(candles.length - 5).map(c => c.high);
+      let sl = Math.max(...recentHighs);
+      if (sl - lastPrice < lastPrice * 0.003) {
+        sl = lastPrice * 1.003; // 0.3% min distance
+      }
+      const risk = sl - lastPrice;
+      const tp = lastPrice - (2 * risk); // R:R 1:2
+      const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+      const profitPercent = parseFloat((((lastPrice - tp) / lastPrice) * 100).toFixed(2));
+
+      signal = {
+        type: 'SHORT',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons]
+      };
+    }
+
     return {
       success: true,
       pUp,
       pDown,
       bias,
       reasons,
+      hasSignal,
+      signal,
       indicators: {
         rsi: lastRsi,
         macdHist: lastHist,
@@ -396,6 +446,8 @@ class TechnicalAnalysisService {
       '5m': { ema: 5, div: 3 }
     };
 
+    let emaValues15m = { ema50: null, ema350: null, ema700: null };
+
     timeframes.forEach(tf => {
       const candles = klinesMap[tf];
       const prices = candles.map(c => c.close);
@@ -414,6 +466,12 @@ class TechnicalAnalysisService {
       
       const emaWeight = weights[tf].ema;
       const divWeight = weights[tf].div;
+
+      if (tf === '15m') {
+        emaValues15m.ema50 = lastE50;
+        emaValues15m.ema350 = lastE350;
+        emaValues15m.ema700 = lastE700;
+      }
 
       // 1. Structure EMAs
       if (lastE50 !== null && lastE350 !== null && lastE700 !== null) {
@@ -472,12 +530,67 @@ class TechnicalAnalysisService {
     else if (pDown >= 65) bias = 'VENTA INSTITUCIONAL';
     else if (pDown >= 55) bias = 'SESGO VENDEDOR';
 
+    // Generate signal
+    let hasSignal = false;
+    let signal = null;
+    const lastPrice15m = klinesMap['15m'][klinesMap['15m'].length - 1].close;
+
+    if (pUp >= 65 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
+      hasSignal = true;
+      const minEma = Math.min(emaValues15m.ema50, emaValues15m.ema350, emaValues15m.ema700);
+      let sl = minEma * 0.998; // 0.2% below min EMA
+      if (lastPrice15m - sl < lastPrice15m * 0.003) {
+        sl = lastPrice15m * 0.997; // min 0.3%
+      } else if (lastPrice15m - sl > lastPrice15m * 0.02) {
+        sl = lastPrice15m * 0.98; // max 2.0%
+      }
+      const risk = lastPrice15m - sl;
+      const tp = lastPrice15m + (3 * risk); // R:R 1:3
+      const riskPercent = parseFloat(((risk / lastPrice15m) * 100).toFixed(2));
+      const profitPercent = parseFloat((((tp - lastPrice15m) / lastPrice15m) * 100).toFixed(2));
+
+      signal = {
+        type: 'LONG',
+        entry: lastPrice15m,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...details].filter(d => d.includes('[15m]') || d.includes('[1h]') || d.includes('[4h]'))
+      };
+    } else if (pDown >= 65 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
+      hasSignal = true;
+      const maxEma = Math.max(emaValues15m.ema50, emaValues15m.ema350, emaValues15m.ema700);
+      let sl = maxEma * 1.002; // 0.2% above max EMA
+      if (sl - lastPrice15m < lastPrice15m * 0.003) {
+        sl = lastPrice15m * 1.003; // min 0.3%
+      } else if (sl - lastPrice15m > lastPrice15m * 0.02) {
+        sl = lastPrice15m * 1.02; // max 2.0%
+      }
+      const risk = sl - lastPrice15m;
+      const tp = lastPrice15m - (3 * risk); // R:R 1:3
+      const riskPercent = parseFloat(((risk / lastPrice15m) * 100).toFixed(2));
+      const profitPercent = parseFloat((((lastPrice15m - tp) / lastPrice15m) * 100).toFixed(2));
+
+      signal = {
+        type: 'SHORT',
+        entry: lastPrice15m,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...details].filter(d => d.includes('[15m]') || d.includes('[1h]') || d.includes('[4h]'))
+      };
+    }
+
     return {
       success: true,
       pUp,
       pDown,
       bias,
-      details
+      details,
+      hasSignal,
+      signal
     };
   }
 
