@@ -32,7 +32,7 @@ export default function App() {
   const [cmcPulse, setCmcPulse] = useState(false);
 
   // Auto-scroll logs
-  const logsEndRef = useRef(null);
+  const consoleRef = useRef(null);
 
   // Technical Analysis states
   const [strat1Data, setStrat1Data] = useState(null);
@@ -200,10 +200,10 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Scroll logs to bottom
+  // Scroll logs to bottom of container
   useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (consoleRef.current) {
+      consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
     }
   }, [logs]);
 
@@ -512,7 +512,7 @@ export default function App() {
             </p>
 
             {/* Terminal console */}
-            <div style={{ flex: 1, background: '#030408', borderRadius: '10px', padding: '0.75rem', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '280px' }}>
+            <div ref={consoleRef} style={{ flex: 1, background: '#030408', borderRadius: '10px', padding: '0.75rem', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '280px' }}>
               {logs.map((log, index) => {
                 let color = 'var(--color-text-muted)';
                 if (log.type === 'up') color = 'var(--color-up)';
@@ -528,7 +528,6 @@ export default function App() {
                   </div>
                 );
               })}
-              <div ref={logsEndRef} />
             </div>
           </div>
         </section>
