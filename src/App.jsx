@@ -37,6 +37,7 @@ export default function App() {
   // Technical Analysis states
   const [strat1Data, setStrat1Data] = useState(null);
   const [strat2Data, setStrat2Data] = useState(null);
+  const [strat3Data, setStrat3Data] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState(null);
 
@@ -179,9 +180,11 @@ export default function App() {
         '4h': k4h
       };
       const res2 = technicalAnalysisService.runStrategy2(klinesMap);
+      const res3 = technicalAnalysisService.runStrategy3(klinesMap);
 
       setStrat1Data(res1);
       setStrat2Data(res2);
+      setStrat3Data(res3);
       setAnalysisError(null);
     } catch (err) {
       console.error('Error running technical analysis:', err);
@@ -734,8 +737,148 @@ export default function App() {
             ⚠️ {analysisError}
           </div>
         )}
+        {/* ESTRATEGIA 3: SEÑALES DE TRADING DE ALTA PROBABILIDAD */}
+        <div style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '16px', padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+          
+          {/* Decorative glowing background indicator if signal exists */}
+          {strat3Data && strat3Data.hasSignal && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '150px',
+              height: '150px',
+              background: strat3Data.signal.type === 'LONG' ? 'radial-gradient(circle, rgba(0, 230, 118, 0.1) 0%, rgba(0,0,0,0) 70%)' : 'radial-gradient(circle, rgba(255, 23, 68, 0.1) 0%, rgba(0,0,0,0) 70%)',
+              pointerEvents: 'none'
+            }} />
+          )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#f59e0b', fontWeight: 700, letterSpacing: '0.07em' }}>Estrategia 3 (Institucional)</span>
+              <h3 style={{ fontSize: '1.3rem', color: '#fff', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                🚨 Algoritmo de Señales de Alta Probabilidad
+              </h3>
+            </div>
+            {strat3Data && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.03)', padding: '0.35rem 0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', fontWeight: 500 }}>
+                Sesgo Macro (1h): <strong style={{ color: strat3Data.macroBias === 'ALCISTA' ? 'var(--color-up)' : 'var(--color-down)' }}>{strat3Data.macroBias}</strong>
+              </span>
+            )}
+          </div>
+
+          {analysisLoading ? (
+            <div style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', textAlign: 'center', padding: '2rem 0' }}>Buscando barridas de liquidez institucional...</div>
+          ) : strat3Data && strat3Data.hasSignal ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              
+              {/* Signal Alert Header */}
+              <div style={{ 
+                padding: '1.25rem', 
+                borderRadius: '12px', 
+                background: strat3Data.signal.type === 'LONG' ? 'rgba(0, 230, 118, 0.08)' : 'rgba(255, 23, 68, 0.08)',
+                border: `1px solid ${strat3Data.signal.type === 'LONG' ? 'rgba(0, 230, 118, 0.15)' : 'rgba(255, 23, 68, 0.15)'}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1rem'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ 
+                      fontSize: '1.2rem', 
+                      fontWeight: 800, 
+                      color: strat3Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)',
+                      letterSpacing: '0.05em'
+                    }}>
+                      NUEVA SEÑAL: {strat3Data.signal.type}
+                    </span>
+                    <span style={{ fontSize: '1rem' }}>
+                      {'⭐'.repeat(strat3Data.signal.stars)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                    Confluencia de {strat3Data.signal.stars} factores detectada en gráfico de 15m.
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff' }}>
+                    {strat3Data.signal.probability}%
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Probabilidad de Éxito
+                  </div>
+                </div>
+              </div>
+
+              {/* Trading Levels Panel */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                
+                {/* ENTRY LEVEL */}
+                <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.03)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '0.35rem' }}>Precio de Entrada</div>
+                  <div className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
+                    ${formatPrice(strat3Data.signal.entry)}
+                  </div>
+                </div>
+
+                {/* STOP LOSS */}
+                <div style={{ padding: '1rem', background: 'rgba(255, 23, 68, 0.02)', borderRadius: '10px', border: '1px solid rgba(255, 23, 68, 0.06)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-down)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '0.35rem' }}>Stop Loss (SL)</div>
+                  <div className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-down)' }}>
+                    ${formatPrice(strat3Data.signal.sl)}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                    Riesgo: -{strat3Data.signal.riskPercent}%
+                  </div>
+                </div>
+
+                {/* TAKE PROFIT */}
+                <div style={{ padding: '1rem', background: 'rgba(0, 230, 118, 0.02)', borderRadius: '10px', border: '1px solid rgba(0, 230, 118, 0.06)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-up)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '0.35rem' }}>Take Profit (TP)</div>
+                  <div className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-up)' }}>
+                    ${formatPrice(strat3Data.signal.tp)}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                    Retorno: +{strat3Data.signal.profitPercent}% (Ratio 1:3)
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Rationale Reasons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(0,0,0,0.1)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.01)' }}>
+                <h4 style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Argumentación del Algoritmo</h4>
+                <ul style={{ paddingLeft: '1.2rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>
+                  {strat3Data.signal.reasons.map((r, idx) => (
+                    <li key={idx} style={{ lineHeight: '1.4' }}>{r}</li>
+                  ))}
+                </ul>
+              </div>
+
+            </div>
+          ) : (
+            <div style={{ 
+              padding: '1.5rem', 
+              borderRadius: '12px', 
+              background: 'rgba(255,255,255,0.01)', 
+              border: '1px solid rgba(255,255,255,0.02)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '1rem',
+              justifyContent: 'center',
+              color: 'var(--color-text-muted)',
+              fontSize: '0.9rem'
+            }}>
+              <span className="pulse-yellow bg-yellow-500" style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }}></span>
+              Buscando confluencia en el mercado... No hay señales de alta probabilidad en este momento (15m).
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '2rem' }}>
           
           {/* ESTRATEGIA 1: CONFLUENCIA MULTIFACTORIAL */}
           <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

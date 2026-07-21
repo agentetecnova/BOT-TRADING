@@ -480,6 +480,188 @@ class TechnicalAnalysisService {
       details
     };
   }
+
+  /**
+   * Run Strategy 3: Algoritmo de Alta Probabilidad (Señales de Trading)
+   * Analyzes liquidity sweeps on 15m, trend on 1h (EMA 350), and RSI 7 divergences
+   */
+  runStrategy3(klinesMap) {
+    const k1h = klinesMap['1h'];
+    const k15m = klinesMap['15m'];
+
+    if (!k1h || k1h.length < 360 || !k15m || k15m.length < 50) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 3' };
+    }
+
+    // 1. Trend Filter on 1h (EMA 350)
+    const close1h = k1h.map(c => c.close);
+    const ema350_1h = this.calculateEMA(close1h, 350);
+    const lastPrice1h = close1h[close1h.length - 1];
+    const lastEma350_1h = ema350_1h[ema350_1h.length - 1];
+
+    if (lastEma350_1h === null) {
+      return { success: false, error: 'Calculando EMA 350...' };
+    }
+
+    const isBullishMacro = lastPrice1h > lastEma350_1h;
+    const macroBias = isBullishMacro ? 'ALCISTA' : 'BAJISTA';
+
+    // 2. Liquidity Sweep Scan on 15m
+    const closes15m = k15m.map(c => c.close);
+    const highs15m = k15m.map(c => c.high);
+    const lows15m = k15m.map(c => c.low);
+    const volumes15m = k15m.map(c => c.volume);
+    
+    const rsi7 = this.calculateRSI(closes15m, 7);
+
+    // Scan the latest completed 15m candle (index len - 2)
+    const i = k15m.length - 2;
+    const currentPrice = closes15m[closes15m.length - 1]; // Live price for Entry
+
+    // Scan prior window (i - 40 to i - 1)
+    const priorStartIndex = i - 40;
+    const priorEndIndex = i - 1;
+    
+    let lowestLowPrior = Infinity;
+    let idxLowPrior = -1;
+    let highestHighPrior = -Infinity;
+    let idxHighPrior = -1;
+
+    for (let k = priorStartIndex; k <= priorEndIndex; k++) {
+      if (lows15m[k] < lowestLowPrior) {
+        lowestLowPrior = lows15m[k];
+        idxLowPrior = k;
+      }
+      if (highs15m[k] > highestHighPrior) {
+        highestHighPrior = highs15m[k];
+        idxHighPrior = k;
+      }
+    }
+
+    // Detect sweeps on candle i (latest completed candle)
+    const isBullishSweep = lows15m[i] < lowestLowPrior && closes15m[i] > lowestLowPrior;
+    const isBearishSweep = highs15m[i] > highestHighPrior && closes15m[i] < highestHighPrior;
+
+    // 3. Divergence in RSI 7
+    let isBullishDiv = false;
+    let isBearishDiv = false;
+
+    if (isBullishSweep && idxLowPrior !== -1 && rsi7[i] !== null && rsi7[idxLowPrior] !== null) {
+      if (rsi7[i] > rsi7[idxLowPrior]) {
+        isBullishDiv = true;
+      }
+    }
+
+    if (isBearishSweep && idxHighPrior !== -1 && rsi7[i] !== null && rsi7[idxHighPrior] !== null) {
+      if (rsi7[i] < rsi7[idxHighPrior]) {
+        isBearishDiv = true;
+      }
+    }
+
+    // 4. Volume Confirmation (> 1.3x avg of previous 10 candles)
+    let isVolConfirm = false;
+    const volStartIdx = i - 11;
+    const volEndIdx = i - 2;
+    let volSum = 0;
+    for (let k = volStartIdx; k <= volEndIdx; k++) {
+      volSum += volumes15m[k];
+    }
+    const avgVol = volSum / 10;
+    if (volumes15m[i] > avgVol * 1.3) {
+      isVolConfirm = true;
+    }
+
+    // Evaluate Signals matching Macro Trend
+    let activeSignal = null;
+    const reasons = [];
+
+    if (isBullishMacro && isBullishSweep) {
+      let stars = 1;
+      reasons.push('Filtro Macro Alcista Confirmado (Precio > EMA 350 en 1h)');
+      reasons.push(`Barrida de Mínimo Local de 40 velas en 15m ($${lowestLowPrior.toFixed(2)})`);
+      
+      if (isBullishDiv) {
+        stars++;
+        reasons.push(`Divergencia Alcista en RSI 7 (RSI actual ${rsi7[i].toFixed(1)} > RSI anterior ${rsi7[idxLowPrior].toFixed(1)})`);
+      }
+      if (isVolConfirm) {
+        stars++;
+        const ratio = (volumes15m[i] / avgVol).toFixed(2);
+        reasons.push(`Volumen institucional superior (${ratio}x promedio)`);
+      }
+
+      // Calculate levels
+      const entry = currentPrice;
+      const sl = lows15m[i] * 0.998; // 0.2% below sweep low
+      const risk = entry - sl;
+      const tp = entry + (3 * risk); // Risk-Reward 1:3
+      
+      const riskPercent = parseFloat(((risk / entry) * 100).toFixed(2));
+      const profitPercent = parseFloat((((tp - entry) / entry) * 100).toFixed(2));
+      
+      let prob = 60;
+      if (stars === 2) prob = 73;
+      if (stars === 3) prob = 85;
+
+      activeSignal = {
+        type: 'LONG',
+        stars,
+        probability: prob,
+        entry,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons
+      };
+    } else if (!isBullishMacro && isBearishSweep) {
+      let stars = 1;
+      reasons.push('Filtro Macro Bajista Confirmado (Precio < EMA 350 en 1h)');
+      reasons.push(`Barrida de Máximo Local de 40 velas en 15m ($${highestHighPrior.toFixed(2)})`);
+
+      if (isBearishDiv) {
+        stars++;
+        reasons.push(`Divergencia Bajista en RSI 7 (RSI actual ${rsi7[i].toFixed(1)} < RSI anterior ${rsi7[idxHighPrior].toFixed(1)})`);
+      }
+      if (isVolConfirm) {
+        stars++;
+        const ratio = (volumes15m[i] / avgVol).toFixed(2);
+        reasons.push(`Volumen institucional superior (${ratio}x promedio)`);
+      }
+
+      // Calculate levels
+      const entry = currentPrice;
+      const sl = highs15m[i] * 1.002; // 0.2% above sweep high
+      const risk = sl - entry;
+      const tp = entry - (3 * risk); // Risk-Reward 1:3
+
+      const riskPercent = parseFloat(((risk / entry) * 100).toFixed(2));
+      const profitPercent = parseFloat((((entry - tp) / entry) * 100).toFixed(2));
+
+      let prob = 60;
+      if (stars === 2) prob = 73;
+      if (stars === 3) prob = 85;
+
+      activeSignal = {
+        type: 'SHORT',
+        stars,
+        probability: prob,
+        entry,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons
+      };
+    }
+
+    return {
+      success: true,
+      macroBias,
+      hasSignal: activeSignal !== null,
+      signal: activeSignal
+    };
+  }
 }
 
 const technicalAnalysisService = new TechnicalAnalysisService();
