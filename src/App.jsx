@@ -444,7 +444,7 @@ export default function App() {
               {cvd5m >= 0 ? '+' : ''}{cvd5m.toLocaleString('en-US')}
             </span>
             <span style={{ fontSize: '0.65rem', color: cvdStatus.color, fontWeight: 700 }}>{cvdStatus.label}</span>
-            <span style={{ fontSize: '0.55rem', color: 'var(--color-text-muted)', marginTop: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem', lineHeight: '1.2' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem', lineHeight: '1.3' }}>
               Suma de compras menos ventas a mercado. Divergencia alcista anticipa rebotes; bajista anticipa correcciones.
             </span>
           </div>
