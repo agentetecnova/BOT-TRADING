@@ -23,6 +23,7 @@ export default function App() {
   const [strat1Data, setStrat1Data] = useState(null);
   const [strat2Data, setStrat2Data] = useState(null);
   const [strat3Data, setStrat3Data] = useState(null);
+  const [strat4Data, setStrat4Data] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState(null);
 
@@ -220,11 +221,13 @@ export default function App() {
   // Run technical analysis calculations for BTC
   const runTechnicalAnalysis = async () => {
     try {
-      const [k5m, k15m, k1h, k4h] = await Promise.all([
+      const [k5m, k15m, k1h, k4h, k1d, k1w] = await Promise.all([
         technicalAnalysisService.fetchKlines('BTCUSDT', '5m', 1000),
         technicalAnalysisService.fetchKlines('BTCUSDT', '15m', 1000),
         technicalAnalysisService.fetchKlines('BTCUSDT', '1h', 1000),
-        technicalAnalysisService.fetchKlines('BTCUSDT', '4h', 1000)
+        technicalAnalysisService.fetchKlines('BTCUSDT', '4h', 1000),
+        technicalAnalysisService.fetchKlines('BTCUSDT', '1d', 100),
+        technicalAnalysisService.fetchKlines('BTCUSDT', '1w', 50)
       ]);
 
       const res1 = technicalAnalysisService.runStrategy1(k15m);
@@ -246,15 +249,20 @@ export default function App() {
       
       const res3 = technicalAnalysisService.runStrategy3(klinesMap, { longLiqs, shortLiqs });
 
+      // Run Strategy 4: Squeeze & Trend (Macro/Micro)
+      const res4 = technicalAnalysisService.runStrategy4(k1w, k1d);
+
       setStrat1Data(res1);
       setStrat2Data(res2);
       setStrat3Data(res3);
+      setStrat4Data(res4);
       setAnalysisError(null);
 
       // Process new signals if any
       addNewSignal('Estrategia 1', res1);
       addNewSignal('Estrategia 2', res2);
       addNewSignal('Estrategia 3', res3);
+      addNewSignal('Estrategia 4', res4);
 
     } catch (err) {
       console.error('Error running technical analysis:', err);
@@ -348,6 +356,7 @@ export default function App() {
   const stats1 = getStatsByStrategy('Estrategia 1');
   const stats2 = getStatsByStrategy('Estrategia 2');
   const stats3 = getStatsByStrategy('Estrategia 3');
+  const stats4 = getStatsByStrategy('Estrategia 4');
 
   // Calculate rolling CVD divergence situation
   const getCvdStatus = () => {
@@ -491,7 +500,14 @@ export default function App() {
         </div>
       )}
 
-      {/* 3 STRATEGIES MAIN ROW (Top Visuals) */}
+      {/* VOLATILITY SQUEEZE WARNING BANNER */}
+      {strat4Data && strat4Data.isSqueeze && (
+        <div style={{ padding: '1rem', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          🔥 COMPRESIÓN DE VOLATILIDAD (Bollinger Squeeze): Ancho de bandas {(strat4Data.bbw * 100).toFixed(2)}%. Gran movimiento inminente en los próximos días. Filtro macro semanal: {strat4Data.pUp > strat4Data.pDown ? 'ALCISTA (LONG)' : 'BAJISTA (SHORT)'}.
+        </div>
+      )}
+
+      {/* 4 STRATEGIES MAIN ROW (Top Visuals) */}
       <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         
         {/* Section Header */}
@@ -501,7 +517,7 @@ export default function App() {
               🧠 Modelos Predictivos en Tiempo Real
             </h2>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-              Tres algoritmos independientes analizando el flujo de BTC de manera paralela.
+              Cuatro algoritmos independientes analizando el flujo de BTC de manera paralela.
             </p>
           </div>
           {analysisLoading ? (
@@ -713,6 +729,72 @@ export default function App() {
             ) : null}
           </div>
 
+          {/* ESTRATEGIA 4: SQUEEZE & TREND (VOLATILIDAD + BANDA SEMANALES) */}
+          <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#a855f7', fontWeight: 700, letterSpacing: '0.05em' }}>
+                  Estrategia 4 {stats4.winRate !== null ? `• WR: ${stats4.winRate}%` : '• WR: --'}
+                </span>
+                <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>🌀 Squeeze & Trend (1D + 1W)</h3>
+              </div>
+              {strat4Data && (
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '6px', background: strat4Data.bias.includes('ALCISTA') ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)', color: strat4Data.bias.includes('ALCISTA') ? 'var(--color-up)' : 'var(--color-down)' }}>
+                  {strat4Data.bias.split(' ')[0]}
+                </span>
+              )}
+            </div>
+
+            {analysisLoading ? (
+              <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>Cargando análisis...</div>
+            ) : strat4Data ? (
+              <>
+                {/* Volatility compression indicator */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>COMPRESIÓN DIARIA (BBW):</span>
+                    <span style={{ color: strat4Data.isSqueeze ? '#f59e0b' : 'var(--color-text-muted)', fontWeight: 700 }}>
+                      {(strat4Data.bbw * 100).toFixed(2)}% {strat4Data.isSqueeze ? '🔥 Squeeze' : 'Normal'}
+                    </span>
+                  </div>
+                  <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+                    <div style={{ width: `${Math.min(100, Math.max(5, (1 - strat4Data.bbw) * 100))}%`, background: strat4Data.isSqueeze ? '#f59e0b' : 'var(--color-primary)', transition: 'width 0.5s ease' }} />
+                  </div>
+                </div>
+
+                {/* Strategy 4 Active Signal */}
+                {strat4Data.hasSignal ? (
+                  <div style={{ padding: '0.85rem', borderRadius: '10px', background: strat4Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.05)' : 'rgba(255,23,68,0.05)', border: `1px solid ${strat4Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)'}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: strat4Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)' }}>RUPTURA: {strat4Data.signal.type}</div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fff' }}>R:R 1:3</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                      <div>Entrada: ${formatPrice(strat4Data.signal.entry)}</div>
+                      <div style={{ color: 'var(--color-down)' }}>Stop Loss: ${formatPrice(strat4Data.signal.sl)} (-{strat4Data.signal.riskPercent}%)</div>
+                      <div style={{ color: 'var(--color-up)' }}>Take Profit: ${formatPrice(strat4Data.signal.tp)} (+{strat4Data.signal.profitPercent}%)</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                    <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
+                    {strat4Data.isSqueeze ? 'Monitoreando ruptura...' : 'Esperando compresión...'}
+                  </div>
+                )}
+
+                {/* Reasons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <h4 style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Diagnóstico Técnico</h4>
+                  <ul style={{ paddingLeft: '1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                    {strat4Data.reasons.map((r, i) => (
+                      <li key={i} style={{ lineBreak: 'anywhere' }}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            ) : null}
+          </div>
+
         </div>
       </section>
 
@@ -781,6 +863,20 @@ export default function App() {
               </span>
             </div>
             <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats3.total} señales resueltas</div>
+          </div>
+
+          {/* Stats Estrategia 4 */}
+          <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div style={{ fontSize: '0.7rem', color: '#a855f7', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 4 (Squeeze & Trend)</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats4.winRate !== null ? (stats4.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                {stats4.winRate !== null ? `${stats4.winRate}%` : '--'}
+              </span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                {stats4.tpCount} TP / {stats4.slCount} SL
+              </span>
+            </div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats4.total} señales resueltas</div>
           </div>
 
         </div>

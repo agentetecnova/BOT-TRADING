@@ -787,6 +787,122 @@ class TechnicalAnalysisService {
       signal: activeSignal
     };
   }
+  calculateSMA(prices, period) {
+    if (prices.length < period) return new Array(prices.length).fill(null);
+    const sma = new Array(prices.length).fill(null);
+    for (let i = period - 1; i < prices.length; i++) {
+      const window = prices.slice(i - period + 1, i + 1);
+      const sum = window.reduce((a, b) => a + b, 0);
+      sma[i] = sum / period;
+    }
+    return sma;
+  }
+
+  runStrategy4(weeklyCandles, dailyCandles) {
+    if (!weeklyCandles || weeklyCandles.length < 25 || !dailyCandles || dailyCandles.length < 25) {
+      return { success: false, error: 'Datos semanales o diarios insuficientes para la Estrategia 4' };
+    }
+
+    const weeklyCloses = weeklyCandles.map(c => c.close);
+    const dailyCloses = dailyCandles.map(c => c.close);
+    const lastPrice = dailyCloses[dailyCloses.length - 1];
+
+    // 1. Weekly Support Band (EMA 20 + SMA 21)
+    const wEma20 = this.calculateEMA(weeklyCloses, 20);
+    const wSma21 = this.calculateSMA(weeklyCloses, 21);
+
+    const lastEma20 = wEma20[wEma20.length - 1];
+    const lastSma21 = wSma21[wSma21.length - 1];
+    const bandAvg = (lastEma20 + lastSma21) / 2;
+    const isBullishMacro = lastPrice > bandAvg;
+
+    // 2. Daily Bollinger Squeeze
+    const bb = this.calculateBollingerBands(dailyCloses, 20, 2);
+    const lastUpper = bb.upper[bb.upper.length - 1];
+    const lastLower = bb.lower[bb.lower.length - 1];
+    const lastMiddle = bb.middle[bb.middle.length - 1];
+    
+    // Width = (Upper - Lower) / Middle
+    const bbw = (lastUpper - lastLower) / lastMiddle;
+    const isSqueeze = bbw < 0.05; // Volatility Squeeze if width < 5%
+
+    // 3. Breakout signals
+    let hasSignal = false;
+    let signal = null;
+    const reasons = [];
+
+    reasons.push(isBullishMacro 
+      ? 'Filtro Macro Alcista: Precio sobre Banda de Soporte Semanal (EMA 20/SMA 21)' 
+      : 'Filtro Macro Bajista: Precio debajo de Banda de Soporte Semanal (EMA 20/SMA 21)'
+    );
+
+    if (isSqueeze) {
+      reasons.push(`Compresión de Volatilidad Extrema activa (Ancho de bandas: ${(bbw * 100).toFixed(2)}%)`);
+      
+      // Look for breakout triggers on daily closes
+      if (isBullishMacro && lastPrice >= lastUpper * 0.995) {
+        hasSignal = true;
+        const sl = lastLower; // Stop loss at the opposite band
+        const risk = lastPrice - sl;
+        const tp = lastPrice + (3 * risk); // R:R 1:3
+        const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+        const profitPercent = parseFloat((((tp - lastPrice) / lastPrice) * 100).toFixed(2));
+
+        signal = {
+          type: 'LONG',
+          entry: lastPrice,
+          sl,
+          tp,
+          riskPercent,
+          profitPercent,
+          reasons: [...reasons, 'Ruptura Alcista del canal de compresión de Bollinger']
+        };
+      } else if (!isBullishMacro && lastPrice <= lastLower * 1.005) {
+        hasSignal = true;
+        const sl = lastUpper;
+        const risk = sl - lastPrice;
+        const tp = lastPrice - (3 * risk); // R:R 1:3
+        const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+        const profitPercent = parseFloat((((lastPrice - tp) / lastPrice) * 100).toFixed(2));
+
+        signal = {
+          type: 'SHORT',
+          entry: lastPrice,
+          sl,
+          tp,
+          riskPercent,
+          profitPercent,
+          reasons: [...reasons, 'Ruptura Bajista del canal de compresión de Bollinger']
+        };
+      }
+    } else {
+      reasons.push(`Volatilidad normal (Ancho de bandas: ${(bbw * 100).toFixed(2)}%)`);
+    }
+
+    // Probability & Scoring based on alignment
+    let pUp = 50;
+    let pDown = 50;
+    if (isBullishMacro) {
+      pUp = isSqueeze ? 65 : 55;
+      pDown = 100 - pUp;
+    } else {
+      pDown = isSqueeze ? 65 : 55;
+      pUp = 100 - pDown;
+    }
+
+    return {
+      success: true,
+      pUp,
+      pDown,
+      bias: isBullishMacro ? (isSqueeze ? 'COMPRESIÓN ALCISTA' : 'ALCISTA MACRO') : (isSqueeze ? 'COMPRESIÓN BAJISTA' : 'BAJISTA MACRO'),
+      isSqueeze,
+      bbw,
+      weeklyBand: bandAvg,
+      hasSignal,
+      signal,
+      reasons
+    };
+  }
 }
 
 const technicalAnalysisService = new TechnicalAnalysisService();
