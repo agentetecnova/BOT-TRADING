@@ -1433,6 +1433,308 @@ class TechnicalAnalysisService {
       reasons
     };
   }
+
+  // --- ESTRATEGIAS INSTITUCIONALES (8, 9, 10) ---
+
+  calculateKeltnerChannels(candles, period = 20, multiplier = 2.0) {
+    const prices = candles.map(c => parseFloat(c.close));
+    const sma = this.calculateSMA(prices, period);
+    const atr = this.calculateATR(candles, period);
+    const upper = new Array(candles.length).fill(null);
+    const lower = new Array(candles.length).fill(null);
+
+    for (let i = period - 1; i < candles.length; i++) {
+      if (sma[i] !== null && atr[i] !== null) {
+        upper[i] = sma[i] + (multiplier * atr[i]);
+        lower[i] = sma[i] - (multiplier * atr[i]);
+      }
+    }
+    return { sma, upper, lower, atr };
+  }
+
+  calculateWilliamsR(candles, period = 14) {
+    const result = new Array(candles.length).fill(null);
+    for (let i = period - 1; i < candles.length; i++) {
+      const window = candles.slice(i - period + 1, i + 1);
+      const highestHigh = Math.max(...window.map(c => parseFloat(c.high)));
+      const lowestLow = Math.min(...window.map(c => parseFloat(c.low)));
+      const close = parseFloat(candles[i].close);
+      if (highestHigh === lowestLow) {
+        result[i] = -50;
+      } else {
+        result[i] = ((highestHigh - close) / (highestHigh - lowestLow)) * -100;
+      }
+    }
+    return result;
+  }
+
+  runStrategy8(candles1h) {
+    if (!candles1h || candles1h.length < 50) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 8' };
+    }
+    const prices = candles1h.map(c => parseFloat(c.close));
+    const lastPrice = prices[prices.length - 1];
+
+    const keltner = this.calculateKeltnerChannels(candles1h, 20, 2.0);
+    const lastSma = keltner.sma[prices.length - 1];
+    const lastUpper = keltner.upper[prices.length - 1];
+    const lastLower = keltner.lower[prices.length - 1];
+    const lastAtr = keltner.atr[prices.length - 1];
+
+    const atrSma = this.calculateSMA(keltner.atr.map(v => v || 0), 20);
+    const lastAtrSma = atrSma[prices.length - 1];
+
+    const rsi14 = this.calculateRSI(prices, 14);
+    const lastRsi = rsi14[prices.length - 1];
+
+    let hasSignal = false;
+    let signal = null;
+    const reasons = [];
+
+    const isAtrExpanding = lastAtr !== null && lastAtrSma !== null && lastAtr > lastAtrSma;
+
+    reasons.push(`Precio: $${lastPrice.toLocaleString()} (Keltner SMA: $${Math.round(lastSma).toLocaleString()})`);
+    if (lastAtr !== null) reasons.push(`Volatilidad ATR (14): $${Math.round(lastAtr).toLocaleString()} ${isAtrExpanding ? '(En Expansión)' : '(Normal)'}`);
+    if (lastRsi !== null) reasons.push(`RSI 14: ${lastRsi.toFixed(1)}`);
+
+    const isBullishBreak = lastPrice >= lastUpper && isAtrExpanding && lastRsi !== null && lastRsi > 55;
+    const isBearishBreak = lastPrice <= lastLower && isAtrExpanding && lastRsi !== null && lastRsi < 45;
+
+    if (isBullishBreak) {
+      hasSignal = true;
+      const sl = lastPrice * 0.985; // 1.5% SL
+      const tp = lastPrice * 1.03;  // 3.0% TP (R:R 1:2)
+      const riskPercent = 1.5;
+      const profitPercent = 3.0;
+
+      signal = {
+        type: 'LONG',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Ruptura Alcista de Canal Keltner con Expansión de Volatilidad ATR']
+      };
+    } else if (isBearishBreak) {
+      hasSignal = true;
+      const sl = lastPrice * 1.015; // 1.5% SL
+      const tp = lastPrice * 0.97;  // 3.0% TP (R:R 1:2)
+      const riskPercent = 1.5;
+      const profitPercent = 3.0;
+
+      signal = {
+        type: 'SHORT',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Ruptura Bajista de Canal Keltner con Expansión de Volatilidad ATR']
+      };
+    }
+
+    let pUp = 50;
+    let pDown = 50;
+    if (lastUpper && lastLower && (lastUpper - lastLower) > 0) {
+      pUp = Math.round(((lastPrice - lastLower) / (lastUpper - lastLower)) * 100);
+      pUp = Math.max(5, Math.min(95, pUp));
+      pDown = 100 - pUp;
+    }
+
+    return {
+      success: true,
+      pUp,
+      pDown,
+      bias: pUp > 50 ? 'EXPANSIÓN ALCISTA' : 'EXPANSIÓN BAJISTA',
+      hasSignal,
+      signal,
+      reasons
+    };
+  }
+
+  runStrategy9(candles4h) {
+    if (!candles4h || candles4h.length < 50) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 9' };
+    }
+    const prices = candles4h.map(c => parseFloat(c.close));
+    const lastPrice = prices[prices.length - 1];
+
+    const ema50 = this.calculateEMA(prices, 50);
+    const ema200 = this.calculateEMA(prices, 200);
+    const lastEma50 = ema50[prices.length - 1];
+    const lastEma200 = ema200[prices.length - 1];
+
+    const rsi14 = this.calculateRSI(prices, 14);
+    const lastRsi = rsi14[prices.length - 1];
+    const prevRsi = rsi14[prices.length - 2];
+
+    const lastCandle = candles4h[candles4h.length - 1];
+    const prevCandle = candles4h[candles4h.length - 2];
+
+    const cClose = parseFloat(lastCandle.close);
+    const cOpen = parseFloat(lastCandle.open);
+    const cLow = parseFloat(lastCandle.low);
+    const cHigh = parseFloat(lastCandle.high);
+
+    const pClose = parseFloat(prevCandle.close);
+    const pOpen = parseFloat(prevCandle.open);
+    const pLow = parseFloat(prevCandle.low);
+    const pHigh = parseFloat(prevCandle.high);
+
+    const isUptrend = lastEma50 !== null && lastEma200 !== null && lastEma50 > lastEma200;
+    const isDowntrend = lastEma50 !== null && lastEma200 !== null && lastEma50 < lastEma200;
+
+    const isBullishEngulfing = cClose > pHigh && cOpen < pClose && pClose < pOpen;
+    const isBearishEngulfing = cClose < pLow && cOpen > pClose && pClose > pOpen;
+
+    const isNearEma50Long = lastEma50 !== null && cLow <= lastEma50 * 1.01;
+    const isNearEma50Short = lastEma50 !== null && cHigh >= lastEma50 * 0.99;
+
+    let hasSignal = false;
+    let signal = null;
+    const reasons = [];
+
+    reasons.push(`Sesgo Macro 4H (EMA 50/200): ${isUptrend ? 'Alcista' : isDowntrend ? 'Bajista' : 'Consolidación'}`);
+    if (lastEma50 !== null) reasons.push(`Soporte Dinámico EMA 50: $${Math.round(lastEma50).toLocaleString()}`);
+    if (lastRsi !== null) reasons.push(`RSI 14 (4H): ${lastRsi.toFixed(1)}`);
+
+    if (isUptrend && (isBullishEngulfing || (isNearEma50Long && lastRsi > prevRsi && lastRsi < 48))) {
+      hasSignal = true;
+      const sl = Math.min(cLow, pLow) * 0.995;
+      const risk = lastPrice - sl;
+      const tp = lastPrice + (1.6 * risk);
+      const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+      const profitPercent = parseFloat((((tp - lastPrice) / lastPrice) * 100).toFixed(2));
+
+      signal = {
+        type: 'LONG',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Retroceso a EMA 50 (4H) + Patrón de Reversión Envolvente Alcista']
+      };
+    } else if (isDowntrend && (isBearishEngulfing || (isNearEma50Short && lastRsi < prevRsi && lastRsi > 52))) {
+      hasSignal = true;
+      const sl = Math.max(cHigh, pHigh) * 1.005;
+      const risk = sl - lastPrice;
+      const tp = lastPrice - (1.6 * risk);
+      const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+      const profitPercent = parseFloat((((lastPrice - tp) / lastPrice) * 100).toFixed(2));
+
+      signal = {
+        type: 'SHORT',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Retroceso a EMA 50 (4H) + Patrón de Reversión Envolvente Bajista']
+      };
+    }
+
+    return {
+      success: true,
+      pUp: isUptrend ? 70 : 30,
+      pDown: isUptrend ? 30 : 70,
+      bias: isUptrend ? 'RETROCESO COMPRADOR 4H' : 'RETROCESO VENDEDOR 4H',
+      hasSignal,
+      signal,
+      reasons
+    };
+  }
+
+  runStrategy10(candles1h) {
+    if (!candles1h || candles1h.length < 50) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 10' };
+    }
+    const prices = candles1h.map(c => parseFloat(c.close));
+    const lastPrice = prices[prices.length - 1];
+
+    const window50 = candles1h.slice(candles1h.length - 50);
+    const swingHigh = Math.max(...window50.map(x => parseFloat(x.high)));
+    const swingLow = Math.min(...window50.map(x => parseFloat(x.low)));
+    const range = swingHigh - swingLow;
+
+    const fib618Long = swingHigh - (range * 0.618);
+    const fib786Long = swingHigh - (range * 0.786);
+
+    const fib618Short = swingLow + (range * 0.618);
+    const fib786Short = swingLow + (range * 0.786);
+
+    const williamsR = this.calculateWilliamsR(candles1h, 14);
+    const lastWr = williamsR[prices.length - 1];
+
+    let hasSignal = false;
+    let signal = null;
+    const reasons = [];
+
+    reasons.push(`Rango Swing (50 klines): $${Math.round(swingLow).toLocaleString()} - $${Math.round(swingHigh).toLocaleString()}`);
+    reasons.push(`Golden Pocket (0.618 - 0.786): $${Math.round(fib786Long).toLocaleString()} - $${Math.round(fib618Long).toLocaleString()}`);
+    if (lastWr !== null) reasons.push(`Williams %R (14): ${lastWr.toFixed(1)} ${lastWr < -80 ? '(Agotamiento Vendedor)' : lastWr > -20 ? '(Agotamiento Comprador)' : ''}`);
+
+    const isAtGoldenPocketLong = lastPrice <= fib618Long && lastPrice >= fib786Long;
+    const isAtGoldenPocketShort = lastPrice >= fib618Short && lastPrice <= fib786Short;
+
+    const isOversoldWr = lastWr !== null && lastWr < -75;
+    const isOverboughtWr = lastWr !== null && lastWr > -25;
+
+    if (isAtGoldenPocketLong || (lastPrice <= fib618Long && isOversoldWr)) {
+      hasSignal = true;
+      const sl = swingLow * 0.995;
+      const risk = Math.max(lastPrice * 0.01, lastPrice - sl);
+      const tp = lastPrice + (1.8 * risk);
+      const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+      const profitPercent = parseFloat((((tp - lastPrice) / lastPrice) * 100).toFixed(2));
+
+      signal = {
+        type: 'LONG',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Reversión en Golden Pocket de Fibonacci (0.618/0.786) + Agotamiento Williams %R']
+      };
+    } else if (isAtGoldenPocketShort || (lastPrice >= fib618Short && isOverboughtWr)) {
+      hasSignal = true;
+      const sl = swingHigh * 1.005;
+      const risk = Math.max(lastPrice * 0.01, sl - lastPrice);
+      const tp = lastPrice - (1.8 * risk);
+      const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
+      const profitPercent = parseFloat((((lastPrice - tp) / lastPrice) * 100).toFixed(2));
+
+      signal = {
+        type: 'SHORT',
+        entry: lastPrice,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Reversión en Golden Pocket de Fibonacci (0.618/0.786) + Agotamiento Williams %R']
+      };
+    }
+
+    let pUp = 50;
+    let pDown = 50;
+    if (range > 0) {
+      pUp = Math.round(((swingHigh - lastPrice) / range) * 100);
+      pUp = Math.max(10, Math.min(90, pUp));
+      pDown = 100 - pUp;
+    }
+
+    return {
+      success: true,
+      pUp,
+      pDown,
+      bias: pUp > 50 ? 'REVERSIÓN GOLDEN POCKET (LONG)' : 'REVERSIÓN GOLDEN POCKET (SHORT)',
+      hasSignal,
+      signal,
+      reasons
+    };
+  }
 }
 
 const technicalAnalysisService = new TechnicalAnalysisService();

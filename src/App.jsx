@@ -26,7 +26,7 @@ export default function App() {
   };
 
   // Technical Analysis states
-  const [activeTab, setActiveTab] = useState('core'); // 'core' | 'advanced'
+  const [activeTab, setActiveTab] = useState('core'); // 'core' | 'advanced' | 'institutional'
   const [strat1Data, setStrat1Data] = useState(null);
   const [strat2Data, setStrat2Data] = useState(null);
   const [strat3Data, setStrat3Data] = useState(null);
@@ -34,6 +34,9 @@ export default function App() {
   const [strat5Data, setStrat5Data] = useState(null);
   const [strat6Data, setStrat6Data] = useState(null);
   const [strat7Data, setStrat7Data] = useState(null);
+  const [strat8Data, setStrat8Data] = useState(null);
+  const [strat9Data, setStrat9Data] = useState(null);
+  const [strat10Data, setStrat10Data] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState(null);
 
@@ -297,6 +300,11 @@ export default function App() {
       const res6 = technicalAnalysisService.runStrategy6(k15m);
       const res7 = technicalAnalysisService.runStrategy7(k1h);
 
+      // Run Institutional Strategies (Strategies 8, 9, 10)
+      const res8 = technicalAnalysisService.runStrategy8(k1h);
+      const res9 = technicalAnalysisService.runStrategy9(k4h);
+      const res10 = technicalAnalysisService.runStrategy10(k1h);
+
       setStrat1Data(res1);
       setStrat2Data(res2);
       setStrat3Data(res3);
@@ -304,6 +312,9 @@ export default function App() {
       setStrat5Data(res5);
       setStrat6Data(res6);
       setStrat7Data(res7);
+      setStrat8Data(res8);
+      setStrat9Data(res9);
+      setStrat10Data(res10);
       setAnalysisError(null);
 
       // Process new signals if any
@@ -314,6 +325,9 @@ export default function App() {
       addNewSignal('Estrategia 5', res5);
       addNewSignal('Estrategia 6', res6);
       addNewSignal('Estrategia 7', res7);
+      addNewSignal('Estrategia 8', res8);
+      addNewSignal('Estrategia 9', res9);
+      addNewSignal('Estrategia 10', res10);
 
     } catch (err) {
       console.error('Error running technical analysis:', err);
@@ -411,6 +425,9 @@ export default function App() {
   const stats5 = getStatsByStrategy('Estrategia 5');
   const stats6 = getStatsByStrategy('Estrategia 6');
   const stats7 = getStatsByStrategy('Estrategia 7');
+  const stats8 = getStatsByStrategy('Estrategia 8');
+  const stats9 = getStatsByStrategy('Estrategia 9');
+  const stats10 = getStatsByStrategy('Estrategia 10');
 
   // Calculate rolling CVD divergence situation
   const getCvdStatus = () => {
@@ -598,6 +615,23 @@ export default function App() {
           }}
         >
           🧠 Cuantitativo Avanzado (E5 - E7)
+        </button>
+        <button 
+          onClick={() => setActiveTab('institutional')}
+          style={{
+            background: activeTab === 'institutional' ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
+            border: '1px solid',
+            borderColor: activeTab === 'institutional' ? '#10b981' : 'rgba(255,255,255,0.05)',
+            color: activeTab === 'institutional' ? '#fff' : 'var(--color-text-muted)',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            transition: 'all 0.3s ease'
+          }}
+        >
+          🏛️ Modelos Institucionales (E8 - E10)
         </button>
       </div>
 
@@ -890,7 +924,7 @@ export default function App() {
 
           </div>
         </section>
-      ) : (
+      ) : activeTab === 'advanced' ? (
         <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {/* Section Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
@@ -1103,6 +1137,203 @@ export default function App() {
 
           </div>
         </section>
+      ) : (
+        <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {/* Section Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.4rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                🏛️ Modelos Institucionales (E8 - E10)
+              </h2>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                Estrategias cuantitativas institucionales basadas en Canales Keltner, Velas Envolventes y Golden Pocket de Fibonacci.
+              </p>
+            </div>
+            {analysisLoading ? (
+              <span style={{ fontSize: '0.8rem', color: '#eab308' }}>Calculando...</span>
+            ) : (
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-up)' }}>🟢 En Vivo</span>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+            
+            {/* ESTRATEGIA 8: KELTNER EXPANSIÓN */}
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#10b981', fontWeight: 700, letterSpacing: '0.05em' }}>
+                    Estrategia 8 {stats8.winRate !== null ? `• WR: ${stats8.winRate}%` : '• WR: --'}
+                  </span>
+                  <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>📊 Expansión Keltner + ATR (1H)</h3>
+                </div>
+                {strat8Data && (
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '6px', background: strat8Data.bias.includes('ALCISTA') ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)', color: strat8Data.bias.includes('ALCISTA') ? 'var(--color-up)' : 'var(--color-down)' }}>
+                    {strat8Data.bias.split(' ')[0]}
+                  </span>
+                )}
+              </div>
+
+              {analysisLoading ? (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>Cargando análisis...</div>
+              ) : strat8Data ? (
+                <>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      <span style={{ color: 'var(--color-up)' }}>EXPANSIÓN ALCISTA: {strat8Data.pUp}%</span>
+                      <span style={{ color: 'var(--color-down)' }}>EXPANSIÓN BAJISTA: {strat8Data.pDown}%</span>
+                    </div>
+                    <div style={{ height: '8px', background: 'rgba(255, 23, 68, 0.2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${strat8Data.pUp}%`, background: 'var(--color-up)', transition: 'width 0.5s ease' }} />
+                      <div style={{ width: `${strat8Data.pDown}%`, background: 'var(--color-down)', transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+
+                  {strat8Data.hasSignal ? (
+                    <div style={{ padding: '0.85rem', borderRadius: '10px', background: strat8Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.05)' : 'rgba(255,23,68,0.05)', border: `1px solid ${strat8Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)'}` }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: strat8Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', marginBottom: '0.4rem' }}>RUPTURA DE CANAL: {strat8Data.signal.type}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                        <div>Entrada: ${formatPrice(strat8Data.signal.entry)}</div>
+                        <div style={{ color: 'var(--color-down)' }}>Stop Loss: ${formatPrice(strat8Data.signal.sl)} (-{strat8Data.signal.riskPercent}%)</div>
+                        <div style={{ color: 'var(--color-up)' }}>Take Profit: ${formatPrice(strat8Data.signal.tp)} (+{strat8Data.signal.profitPercent}%)</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                      Esperando ruptura de canal Keltner con volumen...
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <h4 style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Diagnóstico Keltner</h4>
+                    <ul style={{ paddingLeft: '1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      {strat8Data.reasons.slice(0, 3).map((r, i) => (
+                        <li key={i} style={{ lineBreak: 'anywhere' }}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {/* ESTRATEGIA 9: RETROCESO MACRO 4H */}
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#06b6d4', fontWeight: 700, letterSpacing: '0.05em' }}>
+                    Estrategia 9 {stats9.winRate !== null ? `• WR: ${stats9.winRate}%` : '• WR: --'}
+                  </span>
+                  <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>🕯️ Envolvente Macro (EMA 50 - 4H)</h3>
+                </div>
+                {strat9Data && (
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '6px', background: strat9Data.bias.includes('COMPRADOR') ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)', color: strat9Data.bias.includes('COMPRADOR') ? 'var(--color-up)' : 'var(--color-down)' }}>
+                    {strat9Data.bias.split(' ')[1] || 'TENDENCIA'}
+                  </span>
+                )}
+              </div>
+
+              {analysisLoading ? (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>Cargando análisis...</div>
+              ) : strat9Data ? (
+                <>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      <span style={{ color: 'var(--color-up)' }}>SESGO ALCISTA: {strat9Data.pUp}%</span>
+                      <span style={{ color: 'var(--color-down)' }}>SESGO BAJISTA: {strat9Data.pDown}%</span>
+                    </div>
+                    <div style={{ height: '8px', background: 'rgba(255, 23, 68, 0.2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${strat9Data.pUp}%`, background: 'var(--color-up)', transition: 'width 0.5s ease' }} />
+                      <div style={{ width: `${strat9Data.pDown}%`, background: 'var(--color-down)', transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+
+                  {strat9Data.hasSignal ? (
+                    <div style={{ padding: '0.85rem', borderRadius: '10px', background: strat9Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.05)' : 'rgba(255,23,68,0.05)', border: `1px solid ${strat9Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)'}` }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: strat9Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', marginBottom: '0.4rem' }}>ENTRADA MACRO (4H): {strat9Data.signal.type}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                        <div>Entrada: ${formatPrice(strat9Data.signal.entry)}</div>
+                        <div style={{ color: 'var(--color-down)' }}>Stop Loss: ${formatPrice(strat9Data.signal.sl)} (-{strat9Data.signal.riskPercent}%)</div>
+                        <div style={{ color: 'var(--color-up)' }}>Take Profit: ${formatPrice(strat9Data.signal.tp)} (+{strat9Data.signal.profitPercent}%)</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                      Esperando retroceso a EMA 50 y patrón envolvente en 4H...
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <h4 style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Diagnóstico Trend 4H</h4>
+                    <ul style={{ paddingLeft: '1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      {strat9Data.reasons.slice(0, 3).map((r, i) => (
+                        <li key={i} style={{ lineBreak: 'anywhere' }}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {/* ESTRATEGIA 10: FIBONACCI GOLDEN POCKET */}
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#f59e0b', fontWeight: 700, letterSpacing: '0.05em' }}>
+                    Estrategia 10 {stats10.winRate !== null ? `• WR: ${stats10.winRate}%` : '• WR: --'}
+                  </span>
+                  <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>🌀 Fibonacci Golden Pocket (1H)</h3>
+                </div>
+                {strat10Data && (
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '6px', background: strat10Data.bias.includes('LONG') ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)', color: strat10Data.bias.includes('LONG') ? 'var(--color-up)' : 'var(--color-down)' }}>
+                    GOLDEN POCKET
+                  </span>
+                )}
+              </div>
+
+              {analysisLoading ? (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>Cargando análisis...</div>
+              ) : strat10Data ? (
+                <>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      <span style={{ color: 'var(--color-up)' }}>REVERSIÓN SWING: {strat10Data.pUp}%</span>
+                      <span style={{ color: 'var(--color-down)' }}>CONTINUIDAD SWING: {strat10Data.pDown}%</span>
+                    </div>
+                    <div style={{ height: '8px', background: 'rgba(255, 23, 68, 0.2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${strat10Data.pUp}%`, background: 'var(--color-up)', transition: 'width 0.5s ease' }} />
+                      <div style={{ width: `${strat10Data.pDown}%`, background: 'var(--color-down)', transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+
+                  {strat10Data.hasSignal ? (
+                    <div style={{ padding: '0.85rem', borderRadius: '10px', background: strat10Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.05)' : 'rgba(255,23,68,0.05)', border: `1px solid ${strat10Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)'}` }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: strat10Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', marginBottom: '0.4rem' }}>ZONA GOLDEN POCKET: {strat10Data.signal.type}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                        <div>Entrada: ${formatPrice(strat10Data.signal.entry)}</div>
+                        <div style={{ color: 'var(--color-down)' }}>Stop Loss: ${formatPrice(strat10Data.signal.sl)} (-{strat10Data.signal.riskPercent}%)</div>
+                        <div style={{ color: 'var(--color-up)' }}>Take Profit: ${formatPrice(strat10Data.signal.tp)} (+{strat10Data.signal.profitPercent}%)</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                      Buscando entrada en Golden Pocket (0.618 - 0.786)...
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <h4 style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Diagnóstico Fibonacci</h4>
+                    <ul style={{ paddingLeft: '1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      {strat10Data.reasons.slice(0, 3).map((r, i) => (
+                        <li key={i} style={{ lineBreak: 'anywhere' }}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+          </div>
+        </section>
       )}
 
       {/* HISTORIAL Y RENDIMIENTO DE SEÑALES */}
@@ -1247,7 +1478,7 @@ export default function App() {
             </table>
           </div>
         </section>
-      ) : (
+      ) : activeTab === 'advanced' ? (
         <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
@@ -1364,6 +1595,133 @@ export default function App() {
                     );
                   })}
                 {signalsHistory.filter((sig) => ['Estrategia 5', 'Estrategia 6', 'Estrategia 7'].includes(sig.strategy)).length === 0 && (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                      Historial vacío. Esperando la generación de señales...
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : (
+        <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                🏛️ Historial Institucional
+              </h2>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                Seguimiento y efectividad en tiempo real de las señales Institucionales autogestionadas por el bot.
+              </p>
+            </div>
+            
+            <button 
+              onClick={handleClearHistory}
+              style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
+              onMouseEnter={e => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
+              onMouseLeave={e => e.target.style.background = 'rgba(239, 68, 68, 0.05)'}
+            >
+              🗑️ Limpiar Historial
+            </button>
+          </div>
+
+          {/* Stats metrics widgets grouped by Strategy */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            
+            {/* Stats Estrategia 8 */}
+            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div style={{ fontSize: '0.7rem', color: '#10b981', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 8 (Keltner ATR)</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats8.winRate !== null ? (stats8.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                  {stats8.winRate !== null ? `${stats8.winRate}%` : '--'}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                  {stats8.tpCount} TP / {stats8.slCount} SL
+                </span>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats8.total} señales resueltas</div>
+            </div>
+
+            {/* Stats Estrategia 9 */}
+            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div style={{ fontSize: '0.7rem', color: '#06b6d4', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 9 (Macro Engulfing 4H)</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats9.winRate !== null ? (stats9.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                  {stats9.winRate !== null ? `${stats9.winRate}%` : '--'}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                  {stats9.tpCount} TP / {stats9.slCount} SL
+                </span>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats9.total} señales resueltas</div>
+            </div>
+
+            {/* Stats Estrategia 10 */}
+            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div style={{ fontSize: '0.7rem', color: '#f59e0b', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 10 (Fib Golden Pocket)</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats10.winRate !== null ? (stats10.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                  {stats10.winRate !== null ? `${stats10.winRate}%` : '--'}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                  {stats10.tpCount} TP / {stats10.slCount} SL
+                </span>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats10.total} señales resueltas</div>
+            </div>
+
+          </div>
+
+          {/* Signals History Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-text-muted)' }}>
+                  <th style={{ padding: '0.75rem' }}>Hora</th>
+                  <th style={{ padding: '0.75rem' }}>Estrategia</th>
+                  <th style={{ padding: '0.75rem' }}>Operación</th>
+                  <th style={{ padding: '0.75rem' }}>Entrada</th>
+                  <th style={{ padding: '0.75rem' }}>Stop Loss</th>
+                  <th style={{ padding: '0.75rem' }}>Take Profit</th>
+                  <th style={{ padding: '0.75rem' }}>Resultado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {signalsHistory
+                  .filter((sig) => ['Estrategia 8', 'Estrategia 9', 'Estrategia 10'].includes(sig.strategy))
+                  .slice(0, 10)
+                  .map((sig) => {
+                    const date = new Date(sig.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    return (
+                      <tr key={sig.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#cbd5e1' }}>
+                        <td style={{ padding: '0.75rem' }} className="font-mono">{date}</td>
+                        <td style={{ padding: '0.75rem', fontWeight: 600 }}>{sig.strategy}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                          <span style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: sig.type === 'LONG' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)', color: sig.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 700, fontSize: '0.75rem' }}>
+                            {sig.type}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.75rem' }} className="font-mono">${formatPrice(sig.entry)}</td>
+                        <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
+                        <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                          {sig.status === 'PENDING' ? (
+                            <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
+                              Pendiente
+                            </span>
+                          ) : sig.status === 'TP' ? (
+                            <span style={{ color: 'var(--color-up)', fontWeight: 600 }}>✅ Acierto (TP)</span>
+                          ) : (
+                            <span style={{ color: 'var(--color-down)', fontWeight: 600 }}>❌ Pérdida (SL)</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                {signalsHistory.filter((sig) => ['Estrategia 8', 'Estrategia 9', 'Estrategia 10'].includes(sig.strategy)).length === 0 && (
                   <tr>
                     <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
                       Historial vacío. Esperando la generación de señales...
