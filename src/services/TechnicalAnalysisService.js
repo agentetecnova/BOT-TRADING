@@ -1445,7 +1445,30 @@ class TechnicalAnalysisService {
     };
   }
 
-  // --- ESTRATEGIAS INSTITUCIONALES (8, 9, 10) ---
+  calculateATR(candles, period = 14) {
+    if (!candles || candles.length < period) return new Array(candles ? candles.length : 0).fill(null);
+    
+    const trs = [parseFloat(candles[0].high) - parseFloat(candles[0].low)];
+    for (let i = 1; i < candles.length; i++) {
+      const h = parseFloat(candles[i].high);
+      const l = parseFloat(candles[i].low);
+      const prevC = parseFloat(candles[i - 1].close);
+      const tr = Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC));
+      trs.push(tr);
+    }
+
+    const atr = new Array(candles.length).fill(null);
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+      sum += trs[i];
+    }
+    atr[period - 1] = sum / period;
+
+    for (let i = period; i < candles.length; i++) {
+      atr[i] = (atr[i - 1] * (period - 1) + trs[i]) / period;
+    }
+    return atr;
+  }
 
   calculateKeltnerChannels(candles, period = 20, multiplier = 2.0) {
     const prices = candles.map(c => parseFloat(c.close));
