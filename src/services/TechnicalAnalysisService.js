@@ -17,27 +17,38 @@ class TechnicalAnalysisService {
    * @param {number} limit - default 1000 to stabilize high-period EMAs (like EMA 700)
    */
   async fetchKlines(symbol = 'BTCUSDT', interval = '15m', limit = 1000) {
-    try {
-      const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch klines for ${interval}: ${response.statusText}`);
+    const endpoints = [
+      `https://data-api.binance.vision/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `https://api1.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `https://api2.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `https://api3.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
+    ];
+
+    let lastError = null;
+    for (const url of endpoints) {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          const rawData = await response.json();
+          if (Array.isArray(rawData) && rawData.length > 0) {
+            return rawData.map(item => ({
+              openTime: item[0],
+              open: parseFloat(item[1]),
+              high: parseFloat(item[2]),
+              low: parseFloat(item[3]),
+              close: parseFloat(item[4]),
+              volume: parseFloat(item[5]),
+              closeTime: item[6]
+            }));
+          }
+        }
+      } catch (err) {
+        lastError = err;
       }
-      const rawData = await response.json();
-      
-      // Map to clean candlestick structures
-      return rawData.map(item => ({
-        openTime: item[0],
-        open: parseFloat(item[1]),
-        high: parseFloat(item[2]),
-        low: parseFloat(item[3]),
-        close: parseFloat(item[4]),
-        volume: parseFloat(item[5]),
-        closeTime: item[6]
-      }));
-    } catch (error) {
-      console.error(`[Analysis Service] Error fetching ${interval} candles:`, error);
-      throw error;
     }
+    console.error(`[Analysis Service] Error fetching ${interval} candles:`, lastError);
+    throw lastError || new Error(`No se pudo obtener klines para ${interval}`);
   }
 
   // ==========================================

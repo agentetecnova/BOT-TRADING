@@ -331,7 +331,8 @@ export default function App() {
 
     } catch (err) {
       console.error('Error running technical analysis:', err);
-      setAnalysisError('Error al actualizar el análisis de BTC.');
+      addLog('Red', `Error en análisis de BTC: ${err.message || 'Error de conexión'}`, 'down');
+      setAnalysisError(`Error al actualizar el análisis de BTC: ${err.message || 'Sin respuesta del servidor'}`);
     } finally {
       setAnalysisLoading(false);
     }
