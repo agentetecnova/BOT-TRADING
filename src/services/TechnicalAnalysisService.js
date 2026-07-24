@@ -1117,7 +1117,7 @@ class TechnicalAnalysisService {
     const lastPrice = prices[prices.length - 1];
 
     // 1. VWAP and Bands
-    const vwapData = this.calculateVWAPAndBands(candles1h, 24, 2.5);
+    const vwapData = this.calculateVWAPAndBands(candles1h, 24, 2.0);
     const lastVwap = vwapData.vwap[prices.length - 1];
     const lastUpper = vwapData.upper[prices.length - 1];
     const lastLower = vwapData.lower[prices.length - 1];
@@ -1143,9 +1143,9 @@ class TechnicalAnalysisService {
       reasons.push(`StochRSI K/D: ${lastK.toFixed(1)} / ${lastD.toFixed(1)}`);
     }
 
-    // Signals conditions
-    const isOverBought = lastPrice >= lastUpper && lastRsi > 70 && lastK > 80;
-    const isOverSold = lastPrice <= lastLower && lastRsi < 30 && lastK < 20;
+    // Signals conditions (Highly reliable touch + momentum exhausted)
+    const isOverSold = lastPrice <= lastLower && lastRsi !== null && lastRsi < 35 && lastK !== null && lastK < 20;
+    const isOverBought = lastPrice >= lastUpper && lastRsi !== null && lastRsi > 65 && lastK !== null && lastK > 80;
 
     if (isOverSold) {
       pUp = 75;
@@ -1163,7 +1163,7 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, 'Desviación Extrema VWAP (Banda Inferior 2.5) + Agotamiento en StochRSI']
+        reasons: [...reasons, 'Desviación VWAP extrema 2.0 (Soporte) + Agotamiento RSI y StochRSI']
       };
     } else if (isOverBought) {
       pUp = 25;
@@ -1181,7 +1181,7 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, 'Desviación Extrema VWAP (Banda Superior 2.5) + Agotamiento en StochRSI']
+        reasons: [...reasons, 'Desviación VWAP extrema 2.0 (Resistencia) + Agotamiento RSI y StochRSI']
       };
     } else {
       // Passive scoring
@@ -1266,15 +1266,37 @@ class TechnicalAnalysisService {
     if (lastSwingHigh) reasons.push(`Último Máximo Estructural (Swing High): $${lastSwingHigh.toLocaleString()}`);
     if (lastSwingLow) reasons.push(`Último Mínimo Estructural (Swing Low): $${lastSwingLow.toLocaleString()}`);
 
-    const isBullishMSB = lastSwingHigh && lastPrice > lastSwingHigh;
-    const isBearishMSB = lastSwingLow && lastPrice < lastSwingLow;
+    // Scan recent candles for a structure break (MSB) in the last 8 candles
+    let recentBullishMSB = false;
+    let recentBearishMSB = false;
 
-    if (isBullishMSB && isAboveEma && fvgLong) {
+    if (lastSwingHigh) {
+      for (let i = candles15m.length - 8; i < candles15m.length; i++) {
+        if (i < 0) continue;
+        if (parseFloat(candles15m[i].close) > lastSwingHigh) {
+          recentBullishMSB = true;
+          break;
+        }
+      }
+    }
+
+    if (lastSwingLow) {
+      for (let i = candles15m.length - 8; i < candles15m.length; i++) {
+        if (i < 0) continue;
+        if (parseFloat(candles15m[i].close) < lastSwingLow) {
+          recentBearishMSB = true;
+          break;
+        }
+      }
+    }
+
+    // High-reliability check: recent MSB occurred, trend is aligned, FVG exists, and price is currently retesting/touching the FVG zone
+    if (recentBullishMSB && isAboveEma && fvgLong && lastPrice <= fvgLong.high && lastPrice >= fvgLong.low) {
       hasSignal = true;
-      const entry = fvgLong.midpoint;
+      const entry = lastPrice; // execution on retest touch
       const sl = lastSwingLow ? lastSwingLow : entry * 0.985;
-      const risk = entry - sl;
-      const tp = entry + (2 * risk); // R:R 1:2
+      const risk = Math.max(entry * 0.005, entry - sl);
+      const tp = entry + (1.5 * risk);
       const riskPercent = parseFloat(((risk / entry) * 100).toFixed(2));
       const profitPercent = parseFloat((((tp - entry) / entry) * 100).toFixed(2));
 
@@ -1285,14 +1307,14 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, `Quiebre Estructural Alcista (MSB) + Entrada límite en FVG al 50% ($${Math.round(entry).toLocaleString()})`]
+        reasons: [...reasons, `Retesteo de FVG Alcista ($${Math.round(fvgLong.midpoint).toLocaleString()}) tras quiebre estructural MSB`]
       };
-    } else if (isBearishMSB && !isAboveEma && fvgShort) {
+    } else if (recentBearishMSB && !isAboveEma && fvgShort && lastPrice >= fvgShort.low && lastPrice <= fvgShort.high) {
       hasSignal = true;
-      const entry = fvgShort.midpoint;
+      const entry = lastPrice; // execution on retest touch
       const sl = lastSwingHigh ? lastSwingHigh : entry * 1.015;
-      const risk = sl - entry;
-      const tp = entry - (2 * risk); // R:R 1:2
+      const risk = Math.max(entry * 0.005, sl - entry);
+      const tp = entry - (1.5 * risk);
       const riskPercent = parseFloat(((risk / entry) * 100).toFixed(2));
       const profitPercent = parseFloat((((entry - tp) / entry) * 100).toFixed(2));
 
@@ -1303,7 +1325,7 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, `Quiebre Estructural Bajista (MSB) + Entrada límite en FVG al 50% ($${Math.round(entry).toLocaleString()})`]
+        reasons: [...reasons, `Retesteo de FVG Bajista ($${Math.round(fvgShort.midpoint).toLocaleString()}) tras quiebre estructural MSB`]
       };
     }
 
@@ -1343,13 +1365,13 @@ class TechnicalAnalysisService {
     let signal = null;
     const reasons = [];
 
-    if (lastAdx !== null) reasons.push(`Fuerza de Tendencia ADX: ${lastAdx.toFixed(1)} ${lastAdx > 25 ? '(Tendencia Fuerte)' : '(Rango)'}`);
-    if (lastCmf !== null) reasons.push(`Flujo Monetario Chaikin (CMF): ${lastCmf.toFixed(2)} ${lastCmf > 0.15 ? '(Acumulación)' : lastCmf < -0.15 ? '(Distribución)' : '(Neutro)'}`);
-    if (lastRsi !== null) reasons.push(`RSI 14 Diario: ${lastRsi.toFixed(1)}`);
+    if (lastAdx !== null) reasons.push(`Fuerza de Tendencia ADX: ${lastAdx.toFixed(1)} ${lastAdx > 20 ? '(Tendencia Activa)' : '(Rango)'}`);
+    if (lastCmf !== null) reasons.push(`Flujo Monetario Chaikin (CMF): ${lastCmf.toFixed(2)} ${lastCmf > 0.08 ? '(Acumulación)' : lastCmf < -0.08 ? '(Distribución)' : '(Neutro)'}`);
+    if (lastRsi !== null) reasons.push(`RSI 14: ${lastRsi.toFixed(1)}`);
 
-    const isStrongTrend = lastAdx !== null && lastAdx > 25;
-    const isAccumulating = lastCmf !== null && lastCmf > 0.15;
-    const isDistributing = lastCmf !== null && lastCmf < -0.15;
+    const isStrongTrend = lastAdx !== null && lastAdx > 20;
+    const isAccumulating = lastCmf !== null && lastCmf > 0.08;
+    const isDistributing = lastCmf !== null && lastCmf < -0.08;
     
     // Rules:
     // LONG: Strong trend, DI+ > DI-, accumulating, and RSI is not overbought yet (< 68)
@@ -1359,10 +1381,10 @@ class TechnicalAnalysisService {
 
     if (longTrigger) {
       hasSignal = true;
-      const sl = lastPrice * 0.965; // 3.5% Swing Stop Loss
-      const tp = lastPrice * 1.07; // 7% Take Profit (R:R 1:2)
+      const sl = lastPrice * 0.965; // 3.5% Stop Loss
+      const tp = lastPrice * 1.0525; // 5.25% Take Profit (R:R 1:1.5)
       const riskPercent = 3.5;
-      const profitPercent = 7;
+      const profitPercent = 5.25;
 
       signal = {
         type: 'LONG',
@@ -1375,10 +1397,10 @@ class TechnicalAnalysisService {
       };
     } else if (shortTrigger) {
       hasSignal = true;
-      const sl = lastPrice * 1.035; // 3.5% Swing Stop Loss
-      const tp = lastPrice * 0.93; // 7% Take Profit (R:R 1:2)
+      const sl = lastPrice * 1.035; // 3.5% Stop Loss
+      const tp = lastPrice * 0.9475; // 5.25% Take Profit (R:R 1:1.5)
       const riskPercent = 3.5;
-      const profitPercent = 7;
+      const profitPercent = 5.25;
 
       signal = {
         type: 'SHORT',

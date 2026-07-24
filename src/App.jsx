@@ -295,7 +295,7 @@ export default function App() {
       // Run Advanced Quantitative Strategies (Strategies 5, 6, 7)
       const res5 = technicalAnalysisService.runStrategy5(k1h);
       const res6 = technicalAnalysisService.runStrategy6(k15m);
-      const res7 = technicalAnalysisService.runStrategy7(k1d);
+      const res7 = technicalAnalysisService.runStrategy7(k1h);
 
       setStrat1Data(res1);
       setStrat2Data(res2);
