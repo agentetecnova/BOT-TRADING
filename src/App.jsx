@@ -42,6 +42,7 @@ export default function App() {
 
   // Signals History state
   const [signalsHistory, setSignalsHistory] = useState([]);
+  const [selectedStratFilter, setSelectedStratFilter] = useState('ALL');
 
   // Auto-scroll logs
   const consoleRef = useRef(null);
@@ -473,7 +474,7 @@ export default function App() {
   const cvdStatus = getCvdStatus();
 
   return (
-    <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1 }}>
+    <div className="app-container">
       
       {/* HEADER PANEL */}
       <header className="glass-panel" style={{ padding: '2rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
@@ -487,7 +488,7 @@ export default function App() {
           
           {/* Live Liquidations Ticker */}
           {recentLiqs.length > 0 && (
-            <div style={{ display: 'flex', gap: '0.75rem', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.8rem', color: '#cbd5e1', padding: '0.35rem 0.65rem', background: 'rgba(0,0,0,0.15)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.02)', marginTop: '0.75rem', alignItems: 'center', maxWidth: '500px' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.8rem', color: '#cbd5e1', padding: '0.35rem 0.65rem', background: 'rgba(0,0,0,0.15)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.02)', marginTop: '0.75rem', alignItems: 'center', maxWidth: '100%' }}>
               <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em' }}>⚡ RECIENTES:</span>
               <div style={{ display: 'flex', gap: '1rem', overflow: 'hidden' }}>
                 {recentLiqs.slice(0, 3).map((l) => (
@@ -503,10 +504,10 @@ export default function App() {
         </div>
 
         {/* Connection status and live price overview */}
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="header-widgets">
           
           {/* Live Price Widget */}
-          <div className={`glass-panel ${priceFlash ? `flash-${priceFlash}` : ''}`} style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '160px', transition: 'all 0.3s ease' }}>
+          <div className={`glass-panel header-widget-item ${priceFlash ? `flash-${priceFlash}` : ''}`} style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.3s ease' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Precio BTC/USDT</span>
             <span className="font-mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: '0.15rem 0' }}>
               {btcPrice ? `$${formatPrice(btcPrice)}` : 'Cargando...'}
@@ -519,7 +520,7 @@ export default function App() {
           </div>
 
           {/* CVD (5m) Widget */}
-          <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '220px', textAlign: 'center' }}>
+          <div className="glass-panel header-widget-item" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>CVD Delta (5m)</span>
             <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: cvd5m >= 0 ? 'var(--color-up)' : 'var(--color-down)', margin: '0.15rem 0' }}>
               {cvd5m >= 0 ? '+' : ''}{cvd5m.toLocaleString('en-US')}
@@ -531,7 +532,7 @@ export default function App() {
           </div>
 
           {/* Liquidations (5m) Widget */}
-          <div className="glass-panel" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '200px', textAlign: 'center' }}>
+          <div className="glass-panel header-widget-item" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Liquidado (5m)</span>
             
             <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: '0.15rem 0' }}>
@@ -556,7 +557,7 @@ export default function App() {
           </div>
 
           {/* Connection status dot */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--glass-border)', height: '100%' }}>
+          <div className="header-widget-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '0.75rem 1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--glass-border)', height: '100%' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block', background: connectionStatus === 'connected' ? 'var(--color-up)' : connectionStatus === 'connecting' ? '#eab308' : 'var(--color-down)' }}></span>
             <div>
               <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Binance WS</div>
@@ -582,9 +583,10 @@ export default function App() {
       )}
 
       {/* TAB SYSTEM NAV SELECTOR */}
-      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap' }}>
+      <div className="tab-switcher">
         <button 
           onClick={() => setActiveTab('core')}
+          className="tab-button"
           style={{
             background: activeTab === 'core' ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
             border: '1px solid',
@@ -602,6 +604,7 @@ export default function App() {
         </button>
         <button 
           onClick={() => setActiveTab('advanced')}
+          className="tab-button"
           style={{
             background: activeTab === 'advanced' ? 'rgba(168, 85, 247, 0.08)' : 'transparent',
             border: '1px solid',
@@ -619,6 +622,7 @@ export default function App() {
         </button>
         <button 
           onClick={() => setActiveTab('institutional')}
+          className="tab-button"
           style={{
             background: activeTab === 'institutional' ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
             border: '1px solid',
@@ -662,7 +666,7 @@ export default function App() {
           </div>
 
           {/* GRID CONTENEDOR DE LAS 4 ESTRATEGIAS */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
+          <div className="strategy-grid">
             
             {/* ESTRATEGIA 1: CONFLUENCIA MULTIFACTORIAL */}
             <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
@@ -951,7 +955,7 @@ export default function App() {
           </div>
 
           {/* GRID CONTENEDOR DE LAS ESTRATEGIAS 5 - 7 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+          <div className="strategy-grid">
             
             {/* ESTRATEGIA 5: REVERSIÓN VWAP */}
             <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
@@ -1157,7 +1161,7 @@ export default function App() {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+          <div className="strategy-grid">
             
             {/* ESTRATEGIA 8: KELTNER EXPANSIÓN */}
             <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
@@ -1361,7 +1365,7 @@ export default function App() {
           </div>
 
           {/* Stats metrics widgets grouped by Strategy */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+          <div className="stats-grid">
             
             {/* Stats Estrategia 1 */}
             <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -1421,12 +1425,37 @@ export default function App() {
 
           </div>
 
+          {/* Strategy Filter Bar */}
+          <div className="strategy-filter-bar">
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Filtrar Estrategia:</span>
+            {['ALL', 'Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4'].map((strat) => (
+              <button
+                key={strat}
+                onClick={() => setSelectedStratFilter(strat)}
+                className="strategy-filter-btn"
+                style={{
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  background: selectedStratFilter === strat ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${selectedStratFilter === strat ? '#f59e0b' : 'rgba(255,255,255,0.06)'}`,
+                  color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {strat === 'ALL' ? 'Todas (E1-E4)' : strat}
+              </button>
+            ))}
+          </div>
+
           {/* Signals History Table */}
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-responsive">
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-text-muted)' }}>
-                  <th style={{ padding: '0.75rem' }}>Hora</th>
+                  <th style={{ padding: '0.75rem' }}>Fecha / Hora</th>
                   <th style={{ padding: '0.75rem' }}>Estrategia</th>
                   <th style={{ padding: '0.75rem' }}>Operación</th>
                   <th style={{ padding: '0.75rem' }}>Entrada</th>
@@ -1438,12 +1467,14 @@ export default function App() {
               <tbody>
                 {signalsHistory
                   .filter((sig) => ['Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4'].includes(sig.strategy))
-                  .slice(0, 10)
+                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
+                  .slice(0, 15)
                   .map((sig) => {
-                    const date = new Date(sig.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const d = new Date(sig.timestamp);
+                    const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     return (
                       <tr key={sig.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#cbd5e1' }}>
-                        <td style={{ padding: '0.75rem' }} className="font-mono">{date}</td>
+                        <td style={{ padding: '0.75rem' }} className="font-mono">{dateStr}</td>
                         <td style={{ padding: '0.75rem', fontWeight: 600 }}>{sig.strategy}</td>
                         <td style={{ padding: '0.75rem' }}>
                           <span style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: sig.type === 'LONG' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)', color: sig.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 700, fontSize: '0.75rem' }}>
@@ -1468,10 +1499,12 @@ export default function App() {
                       </tr>
                     );
                   })}
-                {signalsHistory.filter((sig) => ['Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4'].includes(sig.strategy)).length === 0 && (
+                {signalsHistory
+                  .filter((sig) => ['Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4'].includes(sig.strategy))
+                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter).length === 0 && (
                   <tr>
                     <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                      Historial vacío. Esperando la generación de señales...
+                      Historial vacío para la selección actual. Esperando la generación de señales...
                     </td>
                   </tr>
                 )}
@@ -1502,7 +1535,7 @@ export default function App() {
           </div>
 
           {/* Stats metrics widgets grouped by Strategy */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+          <div className="stats-grid">
             
             {/* Stats Estrategia 5 */}
             <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -1548,12 +1581,37 @@ export default function App() {
 
           </div>
 
+          {/* Strategy Filter Bar */}
+          <div className="strategy-filter-bar">
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Filtrar Estrategia:</span>
+            {['ALL', 'Estrategia 5', 'Estrategia 6', 'Estrategia 7'].map((strat) => (
+              <button
+                key={strat}
+                onClick={() => setSelectedStratFilter(strat)}
+                className="strategy-filter-btn"
+                style={{
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  background: selectedStratFilter === strat ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${selectedStratFilter === strat ? '#a855f7' : 'rgba(255,255,255,0.06)'}`,
+                  color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {strat === 'ALL' ? 'Todas (E5-E7)' : strat}
+              </button>
+            ))}
+          </div>
+
           {/* Signals History Table */}
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-responsive">
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-text-muted)' }}>
-                  <th style={{ padding: '0.75rem' }}>Hora</th>
+                  <th style={{ padding: '0.75rem' }}>Fecha / Hora</th>
                   <th style={{ padding: '0.75rem' }}>Estrategia</th>
                   <th style={{ padding: '0.75rem' }}>Operación</th>
                   <th style={{ padding: '0.75rem' }}>Entrada</th>
@@ -1565,12 +1623,14 @@ export default function App() {
               <tbody>
                 {signalsHistory
                   .filter((sig) => ['Estrategia 5', 'Estrategia 6', 'Estrategia 7'].includes(sig.strategy))
-                  .slice(0, 10)
+                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
+                  .slice(0, 15)
                   .map((sig) => {
-                    const date = new Date(sig.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const d = new Date(sig.timestamp);
+                    const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     return (
                       <tr key={sig.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#cbd5e1' }}>
-                        <td style={{ padding: '0.75rem' }} className="font-mono">{date}</td>
+                        <td style={{ padding: '0.75rem' }} className="font-mono">{dateStr}</td>
                         <td style={{ padding: '0.75rem', fontWeight: 600 }}>{sig.strategy}</td>
                         <td style={{ padding: '0.75rem' }}>
                           <span style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: sig.type === 'LONG' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)', color: sig.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 700, fontSize: '0.75rem' }}>
@@ -1595,10 +1655,12 @@ export default function App() {
                       </tr>
                     );
                   })}
-                {signalsHistory.filter((sig) => ['Estrategia 5', 'Estrategia 6', 'Estrategia 7'].includes(sig.strategy)).length === 0 && (
+                {signalsHistory
+                  .filter((sig) => ['Estrategia 5', 'Estrategia 6', 'Estrategia 7'].includes(sig.strategy))
+                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter).length === 0 && (
                   <tr>
                     <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                      Historial vacío. Esperando la generación de señales...
+                      Historial vacío para la selección actual. Esperando la generación de señales...
                     </td>
                   </tr>
                 )}
@@ -1629,7 +1691,7 @@ export default function App() {
           </div>
 
           {/* Stats metrics widgets grouped by Strategy */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+          <div className="stats-grid">
             
             {/* Stats Estrategia 8 */}
             <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -1675,12 +1737,37 @@ export default function App() {
 
           </div>
 
+          {/* Strategy Filter Bar */}
+          <div className="strategy-filter-bar">
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Filtrar Estrategia:</span>
+            {['ALL', 'Estrategia 8', 'Estrategia 9', 'Estrategia 10'].map((strat) => (
+              <button
+                key={strat}
+                onClick={() => setSelectedStratFilter(strat)}
+                className="strategy-filter-btn"
+                style={{
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  background: selectedStratFilter === strat ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${selectedStratFilter === strat ? '#10b981' : 'rgba(255,255,255,0.06)'}`,
+                  color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {strat === 'ALL' ? 'Todas (E8-E10)' : strat}
+              </button>
+            ))}
+          </div>
+
           {/* Signals History Table */}
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-responsive">
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-text-muted)' }}>
-                  <th style={{ padding: '0.75rem' }}>Hora</th>
+                  <th style={{ padding: '0.75rem' }}>Fecha / Hora</th>
                   <th style={{ padding: '0.75rem' }}>Estrategia</th>
                   <th style={{ padding: '0.75rem' }}>Operación</th>
                   <th style={{ padding: '0.75rem' }}>Entrada</th>
@@ -1692,12 +1779,14 @@ export default function App() {
               <tbody>
                 {signalsHistory
                   .filter((sig) => ['Estrategia 8', 'Estrategia 9', 'Estrategia 10'].includes(sig.strategy))
-                  .slice(0, 10)
+                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
+                  .slice(0, 15)
                   .map((sig) => {
-                    const date = new Date(sig.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const d = new Date(sig.timestamp);
+                    const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     return (
                       <tr key={sig.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#cbd5e1' }}>
-                        <td style={{ padding: '0.75rem' }} className="font-mono">{date}</td>
+                        <td style={{ padding: '0.75rem' }} className="font-mono">{dateStr}</td>
                         <td style={{ padding: '0.75rem', fontWeight: 600 }}>{sig.strategy}</td>
                         <td style={{ padding: '0.75rem' }}>
                           <span style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: sig.type === 'LONG' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)', color: sig.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 700, fontSize: '0.75rem' }}>
@@ -1722,10 +1811,12 @@ export default function App() {
                       </tr>
                     );
                   })}
-                {signalsHistory.filter((sig) => ['Estrategia 8', 'Estrategia 9', 'Estrategia 10'].includes(sig.strategy)).length === 0 && (
+                {signalsHistory
+                  .filter((sig) => ['Estrategia 8', 'Estrategia 9', 'Estrategia 10'].includes(sig.strategy))
+                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter).length === 0 && (
                   <tr>
                     <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                      Historial vacío. Esperando la generación de señales...
+                      Historial vacío para la selección actual. Esperando la generación de señales...
                     </td>
                   </tr>
                 )}
