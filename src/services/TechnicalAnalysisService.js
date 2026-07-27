@@ -1771,6 +1771,284 @@ class TechnicalAnalysisService {
       reasons
     };
   }
+
+  // --- ESTRATEGIAS DE SCALPING Y MICRO-ESTRUCTURA (11, 12, 13) ---
+
+  calculateSupertrend(candles, period = 7, multiplier = 3.0) {
+    if (!candles || candles.length < period + 1) return { trend: [], upperBand: [], lowerBand: [] };
+    
+    const atr = this.calculateATR(candles, period);
+    const upperBand = new Array(candles.length).fill(null);
+    const lowerBand = new Array(candles.length).fill(null);
+    const trend = new Array(candles.length).fill(1);
+
+    for (let i = period; i < candles.length; i++) {
+      const hl2 = (parseFloat(candles[i].high) + parseFloat(candles[i].low)) / 2;
+      let basicUpper = hl2 + (multiplier * (atr[i] || 0));
+      let basicLower = hl2 - (multiplier * (atr[i] || 0));
+
+      const prevClose = parseFloat(candles[i - 1].close);
+      const prevUpper = upperBand[i - 1] !== null ? upperBand[i - 1] : basicUpper;
+      const prevLower = lowerBand[i - 1] !== null ? lowerBand[i - 1] : basicLower;
+
+      upperBand[i] = (basicUpper < prevUpper || prevClose > prevUpper) ? basicUpper : prevUpper;
+      lowerBand[i] = (basicLower > prevLower || prevClose < prevLower) ? basicLower : prevLower;
+
+      const currClose = parseFloat(candles[i].close);
+      const prevTrend = trend[i - 1] || 1;
+
+      if (prevTrend === 1 && currClose < lowerBand[i]) {
+        trend[i] = -1;
+      } else if (prevTrend === -1 && currClose > upperBand[i]) {
+        trend[i] = 1;
+      } else {
+        trend[i] = prevTrend;
+      }
+    }
+    return { trend, upperBand, lowerBand };
+  }
+
+  runStrategy11(candles5m, cvd5m = 0) {
+    if (!candles5m || candles5m.length < 50) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 11' };
+    }
+    const prices = candles5m.map(c => parseFloat(c.close));
+    const lastPrice = prices[prices.length - 1];
+
+    const rsi14 = this.calculateRSI(prices, 14);
+    const lastRsi = rsi14[prices.length - 1];
+
+    const reasons = [
+      `Precio Spot 5m: $${lastPrice.toLocaleString()}`,
+      `RSI 5m: ${lastRsi !== null ? lastRsi.toFixed(1) : '--'}`,
+      `Flujo CVD 5m: ${cvd5m >= 0 ? '+' : ''}${Math.round(cvd5m).toLocaleString()}`
+    ];
+
+    let bullDiv = false;
+    let bearDiv = false;
+
+    if (prices.length >= 10 && lastRsi !== null) {
+      const pPrevMin = Math.min(...prices.slice(prices.length - 10, prices.length - 2));
+      const rsiPrevMin = Math.min(...rsi14.slice(prices.length - 10, prices.length - 2).filter(r => r !== null));
+
+      if (lastPrice < pPrevMin && lastRsi > rsiPrevMin && cvd5m > -5000) {
+        bullDiv = true;
+      }
+
+      const pPrevMax = Math.max(...prices.slice(prices.length - 10, prices.length - 2));
+      const rsiPrevMax = Math.max(...rsi14.slice(prices.length - 10, prices.length - 2).filter(r => r !== null));
+
+      if (lastPrice > pPrevMax && lastRsi < rsiPrevMax && cvd5m < 5000) {
+        bearDiv = true;
+      }
+    }
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (bullDiv || (lastRsi !== null && lastRsi < 40 && cvd5m >= 0)) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 0.995;
+      const tp = entry * 1.010;
+      const riskPercent = 0.5;
+      const profitPercent = 1.0;
+
+      signal = {
+        type: 'LONG',
+        entry,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Scalp Alcista: Divergencia RSI 5m / Absorción CVD']
+      };
+    } else if (bearDiv || (lastRsi !== null && lastRsi > 60 && cvd5m <= 0)) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 1.005;
+      const tp = entry * 0.990;
+      const riskPercent = 0.5;
+      const profitPercent = 1.0;
+
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Scalp Bajista: Divergencia RSI 5m / Presión CVD']
+      };
+    }
+
+    const pUp = cvd5m >= 0 ? 60 : 40;
+    const pDown = 100 - pUp;
+
+    return {
+      success: true,
+      pUp,
+      pDown,
+      bias: pUp > 50 ? 'SCALP ALCISTA 5M' : 'SCALP BAJISTA 5M',
+      hasSignal,
+      signal,
+      reasons
+    };
+  }
+
+  runStrategy12(candles5m) {
+    if (!candles5m || candles5m.length < 50) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 12' };
+    }
+    const prices = candles5m.map(c => parseFloat(c.close));
+    const lastPrice = prices[prices.length - 1];
+
+    const ema9 = this.calculateEMA(prices, 9);
+    const ema21 = this.calculateEMA(prices, 21);
+    const supertrend = this.calculateSupertrend(candles5m, 7, 3.0);
+
+    const lastEma9 = ema9[prices.length - 1];
+    const lastEma21 = ema21[prices.length - 1];
+    const lastTrend = supertrend.trend[prices.length - 1] || 1;
+
+    const reasons = [
+      `Precio 5m: $${lastPrice.toLocaleString()}`,
+      `EMA 9 / 21: $${Math.round(lastEma9 || 0).toLocaleString()} / $${Math.round(lastEma21 || 0).toLocaleString()}`,
+      `Tendencia Supertrend 5m: ${lastTrend === 1 ? 'ALCISTA (LONG)' : 'BAJISTA (SHORT)'}`
+    ];
+
+    const isEmaBullish = lastEma9 !== null && lastEma21 !== null && lastEma9 > lastEma21;
+    const isEmaBearish = lastEma9 !== null && lastEma21 !== null && lastEma9 < lastEma21;
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (isEmaBullish && lastTrend === 1) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = Math.min(lastEma21 || entry * 0.995, entry * 0.995);
+      const riskPercent = parseFloat((((entry - sl) / entry) * 100).toFixed(2));
+      const tp = entry * (1 + (riskPercent * 2 / 100));
+      const profitPercent = parseFloat((((tp - entry) / entry) * 100).toFixed(2));
+
+      signal = {
+        type: 'LONG',
+        entry,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Impulso Scalp 5m: Cruce EMA 9/21 + Supertrend Alcista']
+      };
+    } else if (isEmaBearish && lastTrend === -1) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = Math.max(lastEma21 || entry * 1.005, entry * 1.005);
+      const riskPercent = parseFloat((((sl - entry) / entry) * 100).toFixed(2));
+      const tp = entry * (1 - (riskPercent * 2 / 100));
+      const profitPercent = parseFloat((((entry - tp) / entry) * 100).toFixed(2));
+
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Impulso Scalp 5m: Cruce EMA 9/21 + Supertrend Bajista']
+      };
+    }
+
+    const pUp = isEmaBullish ? 65 : 35;
+    const pDown = 100 - pUp;
+
+    return {
+      success: true,
+      pUp,
+      pDown,
+      bias: isEmaBullish ? 'MICRO TENDENCIA ALCISTA' : 'MICRO TENDENCIA BAJISTA',
+      hasSignal,
+      signal,
+      reasons
+    };
+  }
+
+  runStrategy13(candles15m) {
+    if (!candles15m || candles15m.length < 50) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 13' };
+    }
+    const prices = candles15m.map(c => parseFloat(c.close));
+    const lastPrice = prices[prices.length - 1];
+
+    const rsi14 = this.calculateRSI(prices, 14);
+    const stochRsi = this.calculateStochRSI(rsi14, 14, 3, 3);
+    const lastK = stochRsi.k[prices.length - 1];
+
+    const recentCandles = candles15m.slice(candles15m.length - 13, candles15m.length - 1);
+    const localHigh = Math.max(...recentCandles.map(c => parseFloat(c.high)));
+    const localLow = Math.min(...recentCandles.map(c => parseFloat(c.low)));
+
+    const reasons = [
+      `Precio Spot 15m: $${lastPrice.toLocaleString()}`,
+      `Rango Local 15m (12 klines): $${Math.round(localLow).toLocaleString()} - $${Math.round(localHigh).toLocaleString()}`,
+      `StochRSI (15m): ${lastK !== null ? lastK.toFixed(1) : '--'}`
+    ];
+
+    const isSweepingLow = lastPrice <= localLow * 1.001 && lastK !== null && lastK < 35;
+    const isSweepingHigh = lastPrice >= localHigh * 0.999 && lastK !== null && lastK > 65;
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (isSweepingLow || (lastPrice < (localLow + localHigh) / 2 && lastK !== null && lastK < 35)) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 0.994;
+      const tp = entry * 1.012;
+      const riskPercent = 0.6;
+      const profitPercent = 1.2;
+
+      signal = {
+        type: 'LONG',
+        entry,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Scalp Barrida 15m: Captura de Liquidez en Mínimo Local + StochRSI']
+      };
+    } else if (isSweepingHigh || (lastPrice > (localLow + localHigh) / 2 && lastK !== null && lastK > 65)) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 1.006;
+      const tp = entry * 0.988;
+      const riskPercent = 0.6;
+      const profitPercent = 1.2;
+
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl,
+        tp,
+        riskPercent,
+        profitPercent,
+        reasons: [...reasons, 'Scalp Barrida 15m: Captura de Liquidez en Máximo Local + StochRSI']
+      };
+    }
+
+    const pUp = lastPrice < (localLow + localHigh) / 2 ? 60 : 40;
+    const pDown = 100 - pUp;
+
+    return {
+      success: true,
+      pUp,
+      pDown,
+      bias: pUp > 50 ? 'BARRIDA ALCISTA 15M' : 'BARRIDA BAJISTA 15M',
+      hasSignal,
+      signal,
+      reasons
+    };
+  }
 }
 
 const technicalAnalysisService = new TechnicalAnalysisService();

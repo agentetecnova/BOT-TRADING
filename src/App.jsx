@@ -37,6 +37,9 @@ export default function App() {
   const [strat8Data, setStrat8Data] = useState(null);
   const [strat9Data, setStrat9Data] = useState(null);
   const [strat10Data, setStrat10Data] = useState(null);
+  const [strat11Data, setStrat11Data] = useState(null);
+  const [strat12Data, setStrat12Data] = useState(null);
+  const [strat13Data, setStrat13Data] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState(null);
 
@@ -306,6 +309,11 @@ export default function App() {
       const res9 = technicalAnalysisService.runStrategy9(k4h);
       const res10 = technicalAnalysisService.runStrategy10(k1h);
 
+      // Run Scalping & Micro-Structure Strategies (Strategies 11, 12, 13)
+      const res11 = technicalAnalysisService.runStrategy11(k5m, cvd5m);
+      const res12 = technicalAnalysisService.runStrategy12(k5m);
+      const res13 = technicalAnalysisService.runStrategy13(k15m);
+
       setStrat1Data(res1);
       setStrat2Data(res2);
       setStrat3Data(res3);
@@ -316,6 +324,9 @@ export default function App() {
       setStrat8Data(res8);
       setStrat9Data(res9);
       setStrat10Data(res10);
+      setStrat11Data(res11);
+      setStrat12Data(res12);
+      setStrat13Data(res13);
       setAnalysisError(null);
 
       // Process new signals if any
@@ -329,6 +340,9 @@ export default function App() {
       addNewSignal('Estrategia 8', res8);
       addNewSignal('Estrategia 9', res9);
       addNewSignal('Estrategia 10', res10);
+      addNewSignal('Estrategia 11', res11);
+      addNewSignal('Estrategia 12', res12);
+      addNewSignal('Estrategia 13', res13);
 
     } catch (err) {
       console.error('Error running technical analysis:', err);
@@ -430,6 +444,9 @@ export default function App() {
   const stats8 = getStatsByStrategy('Estrategia 8');
   const stats9 = getStatsByStrategy('Estrategia 9');
   const stats10 = getStatsByStrategy('Estrategia 10');
+  const stats11 = getStatsByStrategy('Estrategia 11');
+  const stats12 = getStatsByStrategy('Estrategia 12');
+  const stats13 = getStatsByStrategy('Estrategia 13');
 
   // Calculate rolling CVD divergence situation
   const getCvdStatus = () => {
@@ -637,6 +654,24 @@ export default function App() {
           }}
         >
           🏛️ Modelos Institucionales (E8 - E10)
+        </button>
+        <button 
+          onClick={() => setActiveTab('scalping')}
+          className="tab-button"
+          style={{
+            background: activeTab === 'scalping' ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+            border: '1px solid',
+            borderColor: activeTab === 'scalping' ? '#ef4444' : 'rgba(255,255,255,0.05)',
+            color: activeTab === 'scalping' ? '#fff' : 'var(--color-text-muted)',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            transition: 'all 0.3s ease'
+          }}
+        >
+          ⚡ Scalping Corto Plazo (E11 - E13)
         </button>
       </div>
 
@@ -1142,7 +1177,7 @@ export default function App() {
 
           </div>
         </section>
-      ) : (
+      ) : activeTab === 'institutional' ? (
         <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {/* Section Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
@@ -1339,7 +1374,207 @@ export default function App() {
 
           </div>
         </section>
-      )}
+      ) : activeTab === 'scalping' ? (
+        <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {/* Section Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.4rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                ⚡ Scalping y Micro-Estructura (E11 - E13)
+              </h2>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                Estrategias de ultra-corto plazo con objetivos cercanos al precio actual (0.5% - 1.2%) basadas en divergencias RSI/CVD, micro-impulsos de EMA y barridas de liquidez local.
+              </p>
+            </div>
+            {analysisLoading ? (
+              <span style={{ fontSize: '0.8rem', color: '#eab308' }}>Calculando...</span>
+            ) : (
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-down)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="pulse-red bg-red-500" style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }}></span>
+                Motor Scalper Activo
+              </span>
+            )}
+          </div>
+
+          <div className="strategy-grid">
+            
+            {/* ESTRATEGIA 11: DIVERGENCIA RSI/CVD 5M */}
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#ef4444', fontWeight: 700, letterSpacing: '0.05em' }}>
+                    Estrategia 11 {stats11.winRate !== null ? `• WR: ${stats11.winRate}%` : '• WR: --'}
+                  </span>
+                  <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>⚡ Scalp Divergencia RSI / CVD (5m)</h3>
+                </div>
+                {strat11Data?.hasSignal && (
+                  <span style={{ padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: strat11Data.signal.type === 'LONG' ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)', color: strat11Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', border: `1px solid ${strat11Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)'}` }}>
+                    SEÑAL {strat11Data.signal.type}
+                  </span>
+                )}
+              </div>
+
+              {analysisLoading ? (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>Cargando análisis...</div>
+              ) : strat11Data ? (
+                <>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      <span style={{ color: 'var(--color-up)' }}>PROBABILIDAD ALCISTA: {strat11Data.pUp}%</span>
+                      <span style={{ color: 'var(--color-down)' }}>PROBABILIDAD BAJISTA: {strat11Data.pDown}%</span>
+                    </div>
+                    <div style={{ height: '8px', background: 'rgba(255, 23, 68, 0.2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${strat11Data.pUp}%`, background: 'var(--color-up)', transition: 'width 0.5s ease' }} />
+                      <div style={{ width: `${strat11Data.pDown}%`, background: 'var(--color-down)', transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+
+                  {strat11Data.hasSignal ? (
+                    <div style={{ padding: '0.85rem', borderRadius: '10px', background: strat11Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.05)' : 'rgba(255,23,68,0.05)', border: `1px solid ${strat11Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)'}` }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: strat11Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', marginBottom: '0.4rem' }}>ENTRADA SCALP 5M: {strat11Data.signal.type}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                        <div>Entrada: ${formatPrice(strat11Data.signal.entry)}</div>
+                        <div style={{ color: 'var(--color-down)' }}>Stop Loss: ${formatPrice(strat11Data.signal.sl)} (-{strat11Data.signal.riskPercent}%)</div>
+                        <div style={{ color: 'var(--color-up)' }}>Take Profit: ${formatPrice(strat11Data.signal.tp)} (+{strat11Data.signal.profitPercent}%)</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                      Esperando divergencia RSI / CVD en velas de 5m...
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <h4 style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Diagnóstico Scalper</h4>
+                    <ul style={{ paddingLeft: '1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      {strat11Data.reasons.slice(0, 3).map((r, i) => (
+                        <li key={i} style={{ lineBreak: 'anywhere' }}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {/* ESTRATEGIA 12: MICRO-IMPULSO EMA 9/21 + SUPERTREND 5M */}
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#f59e0b', fontWeight: 700, letterSpacing: '0.05em' }}>
+                    Estrategia 12 {stats12.winRate !== null ? `• WR: ${stats12.winRate}%` : '• WR: --'}
+                  </span>
+                  <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>🚀 Micro-Impulso EMA 9/21 + Supertrend</h3>
+                </div>
+                {strat12Data?.hasSignal && (
+                  <span style={{ padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: strat12Data.signal.type === 'LONG' ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)', color: strat12Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', border: `1px solid ${strat12Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)'}` }}>
+                    SEÑAL {strat12Data.signal.type}
+                  </span>
+                )}
+              </div>
+
+              {analysisLoading ? (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>Cargando análisis...</div>
+              ) : strat12Data ? (
+                <>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      <span style={{ color: 'var(--color-up)' }}>MICRO ALCISTA: {strat12Data.pUp}%</span>
+                      <span style={{ color: 'var(--color-down)' }}>MICRO BAJISTA: {strat12Data.pDown}%</span>
+                    </div>
+                    <div style={{ height: '8px', background: 'rgba(255, 23, 68, 0.2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${strat12Data.pUp}%`, background: 'var(--color-up)', transition: 'width 0.5s ease' }} />
+                      <div style={{ width: `${strat12Data.pDown}%`, background: 'var(--color-down)', transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+
+                  {strat12Data.hasSignal ? (
+                    <div style={{ padding: '0.85rem', borderRadius: '10px', background: strat12Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.05)' : 'rgba(255,23,68,0.05)', border: `1px solid ${strat12Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)'}` }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: strat12Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', marginBottom: '0.4rem' }}>ENTRADA TENDENCIA 5M: {strat12Data.signal.type}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                        <div>Entrada: ${formatPrice(strat12Data.signal.entry)}</div>
+                        <div style={{ color: 'var(--color-down)' }}>Stop Loss: ${formatPrice(strat12Data.signal.sl)} (-{strat12Data.signal.riskPercent}%)</div>
+                        <div style={{ color: 'var(--color-up)' }}>Take Profit: ${formatPrice(strat12Data.signal.tp)} (+{strat12Data.signal.profitPercent}%)</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                      Monitoreando alineación EMA 9/21 y Supertrend...
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <h4 style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Diagnóstico Micro Trend</h4>
+                    <ul style={{ paddingLeft: '1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      {strat12Data.reasons.slice(0, 3).map((r, i) => (
+                        <li key={i} style={{ lineBreak: 'anywhere' }}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {/* ESTRATEGIA 13: BARRIDA DE LIQUIDEZ + STOCHRSI 15M */}
+            <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '14px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#10b981', fontWeight: 700, letterSpacing: '0.05em' }}>
+                    Estrategia 13 {stats13.winRate !== null ? `• WR: ${stats13.winRate}%` : '• WR: --'}
+                  </span>
+                  <h3 style={{ fontSize: '1.15rem', color: '#fff', marginTop: '0.15rem' }}>🎯 Barrida Liquidez + StochRSI (15m)</h3>
+                </div>
+                {strat13Data?.hasSignal && (
+                  <span style={{ padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: strat13Data.signal.type === 'LONG' ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)', color: strat13Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', border: `1px solid ${strat13Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)'}` }}>
+                    SEÑAL {strat13Data.signal.type}
+                  </span>
+                )}
+              </div>
+
+              {analysisLoading ? (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>Cargando análisis...</div>
+              ) : strat13Data ? (
+                <>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                      <span style={{ color: 'var(--color-up)' }}>REVERSIÓN MÍNIMOS: {strat13Data.pUp}%</span>
+                      <span style={{ color: 'var(--color-down)' }}>REVERSIÓN MÁXIMOS: {strat13Data.pDown}%</span>
+                    </div>
+                    <div style={{ height: '8px', background: 'rgba(255, 23, 68, 0.2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${strat13Data.pUp}%`, background: 'var(--color-up)', transition: 'width 0.5s ease' }} />
+                      <div style={{ width: `${strat13Data.pDown}%`, background: 'var(--color-down)', transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+
+                  {strat13Data.hasSignal ? (
+                    <div style={{ padding: '0.85rem', borderRadius: '10px', background: strat13Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.05)' : 'rgba(255,23,68,0.05)', border: `1px solid ${strat13Data.signal.type === 'LONG' ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)'}` }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: strat13Data.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', marginBottom: '0.4rem' }}>ENTRADA BARRIDA: {strat13Data.signal.type}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                        <div>Entrada: ${formatPrice(strat13Data.signal.entry)}</div>
+                        <div style={{ color: 'var(--color-down)' }}>Stop Loss: ${formatPrice(strat13Data.signal.sl)} (-{strat13Data.signal.riskPercent}%)</div>
+                        <div style={{ color: 'var(--color-up)' }}>Take Profit: ${formatPrice(strat13Data.signal.tp)} (+{strat13Data.signal.profitPercent}%)</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                      Esperando caza de Stop Loss en máximos/mínimos locales...
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <h4 style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Diagnóstico Liquidez</h4>
+                    <ul style={{ paddingLeft: '1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      {strat13Data.reasons.slice(0, 3).map((r, i) => (
+                        <li key={i} style={{ lineBreak: 'anywhere' }}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+          </div>
+        </section>
+      ) : null}
 
       {/* HISTORIAL Y RENDIMIENTO DE SEÑALES */}
       {activeTab === 'core' ? (
@@ -1668,7 +1903,7 @@ export default function App() {
             </table>
           </div>
         </section>
-      ) : (
+      ) : activeTab === 'institutional' ? (
         <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
@@ -1824,7 +2059,161 @@ export default function App() {
             </table>
           </div>
         </section>
-      )}
+      ) : activeTab === 'scalping' ? (
+        <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                ⚡ Historial Scalping (0.5% - 1.2%)
+              </h2>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                Seguimiento y efectividad en tiempo real de las señales de ultra-corto plazo autogestionadas por el bot.
+              </p>
+            </div>
+            
+            <button 
+              onClick={handleClearHistory}
+              style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
+              onMouseEnter={e => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
+              onMouseLeave={e => e.target.style.background = 'rgba(239, 68, 68, 0.05)'}
+            >
+              🗑️ Limpiar Historial
+            </button>
+          </div>
+
+          {/* Stats metrics widgets */}
+          <div className="stats-grid">
+            {/* Stats Estrategia 11 */}
+            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div style={{ fontSize: '0.7rem', color: '#ef4444', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 11 (Divergencia RSI/CVD)</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats11.winRate !== null ? (stats11.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                  {stats11.winRate !== null ? `${stats11.winRate}%` : '--'}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                  {stats11.tpCount} TP / {stats11.slCount} SL
+                </span>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats11.total} señales resueltas</div>
+            </div>
+
+            {/* Stats Estrategia 12 */}
+            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div style={{ fontSize: '0.7rem', color: '#f59e0b', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 12 (Micro EMA Supertrend)</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats12.winRate !== null ? (stats12.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                  {stats12.winRate !== null ? `${stats12.winRate}%` : '--'}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                  {stats12.tpCount} TP / {stats12.slCount} SL
+                </span>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats12.total} señales resueltas</div>
+            </div>
+
+            {/* Stats Estrategia 13 */}
+            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div style={{ fontSize: '0.7rem', color: '#10b981', textTransform: 'uppercase', fontWeight: 700 }}>Estrategia 13 (Barrida Liquidez 15m)</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '1.5rem', fontWeight: 800, color: stats13.winRate !== null ? (stats13.winRate >= 60 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--color-text-muted)' }}>
+                  {stats13.winRate !== null ? `${stats13.winRate}%` : '--'}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                  {stats13.tpCount} TP / {stats13.slCount} SL
+                </span>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>{stats13.total} señales resueltas</div>
+            </div>
+          </div>
+
+          {/* Strategy Filter Bar */}
+          <div className="strategy-filter-bar">
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Filtrar Estrategia:</span>
+            {['ALL', 'Estrategia 11', 'Estrategia 12', 'Estrategia 13'].map((strat) => (
+              <button
+                key={strat}
+                onClick={() => setSelectedStratFilter(strat)}
+                className="strategy-filter-btn"
+                style={{
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  background: selectedStratFilter === strat ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${selectedStratFilter === strat ? '#ef4444' : 'rgba(255,255,255,0.06)'}`,
+                  color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {strat === 'ALL' ? 'Todas (E11-E13)' : strat}
+              </button>
+            ))}
+          </div>
+
+          {/* Signals History Table */}
+          <div className="table-responsive">
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-text-muted)' }}>
+                  <th style={{ padding: '0.75rem' }}>Fecha / Hora</th>
+                  <th style={{ padding: '0.75rem' }}>Estrategia</th>
+                  <th style={{ padding: '0.75rem' }}>Operación</th>
+                  <th style={{ padding: '0.75rem' }}>Entrada</th>
+                  <th style={{ padding: '0.75rem' }}>Stop Loss</th>
+                  <th style={{ padding: '0.75rem' }}>Take Profit</th>
+                  <th style={{ padding: '0.75rem' }}>Resultado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {signalsHistory
+                  .filter((sig) => ['Estrategia 11', 'Estrategia 12', 'Estrategia 13'].includes(sig.strategy))
+                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
+                  .slice(0, 15)
+                  .map((sig) => {
+                    const d = new Date(sig.timestamp);
+                    const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    return (
+                      <tr key={sig.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#cbd5e1' }}>
+                        <td style={{ padding: '0.75rem' }} className="font-mono">{dateStr}</td>
+                        <td style={{ padding: '0.75rem', fontWeight: 600 }}>{sig.strategy}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                          <span style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: sig.type === 'LONG' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)', color: sig.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 700, fontSize: '0.75rem' }}>
+                            {sig.type}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.75rem' }} className="font-mono">${formatPrice(sig.entry)}</td>
+                        <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
+                        <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                          {sig.status === 'PENDING' ? (
+                            <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
+                              Pendiente
+                            </span>
+                          ) : sig.status === 'TP' ? (
+                            <span style={{ color: 'var(--color-up)', fontWeight: 600 }}>✅ Acierto (TP)</span>
+                          ) : (
+                            <span style={{ color: 'var(--color-down)', fontWeight: 600 }}>❌ Pérdida (SL)</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                {signalsHistory
+                  .filter((sig) => ['Estrategia 11', 'Estrategia 12', 'Estrategia 13'].includes(sig.strategy))
+                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter).length === 0 && (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                      Historial vacío para la selección actual. Esperando la generación de señales scalping...
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {/* SYNCHRONIZATION LOGGER TERMINAL */}
       <section className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', minHeight: '260px' }}>
