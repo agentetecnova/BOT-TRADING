@@ -2049,7 +2049,66 @@ class TechnicalAnalysisService {
       reasons
     };
   }
+
+  /**
+   * Evaluates whether an active pending signal is no longer valid prior to hitting SL/TP.
+   * Criterios de invalidación:
+   * 1. Giro de señal (Signal Flip): El nuevo análisis dio una señal del lado contrario (LONG -> SHORT o viceversa).
+   * 2. Inversión de sesgo/probabilidad: La probabilidad del lado de la señal cayó por debajo de 40% o el bias cambió drásticamente.
+   *
+   * @param {Object} activeSignal - La señal almacenada en estado PENDING
+   * @param {Object} freshResult - El resultado del último cálculo de la misma estrategia
+   * @param {number} currentPrice - Precio spot actual
+   * @returns {Object} { isInvalidated: boolean, reason: string | null }
+   */
+  checkSignalInvalidation(activeSignal, freshResult, currentPrice) {
+    if (!activeSignal || !freshResult || !freshResult.success) {
+      return { isInvalidated: false, reason: null };
+    }
+
+    const { type } = activeSignal;
+
+    // 1. Giro directo de señal (Signal Flip)
+    if (freshResult.hasSignal && freshResult.signal && freshResult.signal.type !== type) {
+      return {
+        isInvalidated: true,
+        reason: `Giro de Señal Detectado: La estrategia cambió de ${type} a ${freshResult.signal.type}.`
+      };
+    }
+
+    // 2. Pérdida de probabilidad / Sesgo Opuesto Fuerte
+    if (type === 'LONG') {
+      if (freshResult.pUp !== undefined && freshResult.pUp < 40) {
+        return {
+          isInvalidated: true,
+          reason: `Pérdida de Probabilidad Alcista: La probabilidad cayó a ${freshResult.pUp}% (Sesgo Bajista).`
+        };
+      }
+      if (freshResult.bias && freshResult.bias.includes('BAJISTA FUERTE')) {
+        return {
+          isInvalidated: true,
+          reason: `Cambio de Sesgo Macro: El análisis actual cambió a BAJISTA FUERTE.`
+        };
+      }
+    } else if (type === 'SHORT') {
+      if (freshResult.pDown !== undefined && freshResult.pDown < 40) {
+        return {
+          isInvalidated: true,
+          reason: `Pérdida de Probabilidad Bajista: La probabilidad cayó a ${freshResult.pDown}% (Sesgo Alcista).`
+        };
+      }
+      if (freshResult.bias && freshResult.bias.includes('ALCISTA FUERTE')) {
+        return {
+          isInvalidated: true,
+          reason: `Cambio de Sesgo Macro: El análisis actual cambió a ALCISTA FUERTE.`
+        };
+      }
+    }
+
+    return { isInvalidated: false, reason: null };
+  }
 }
 
 const technicalAnalysisService = new TechnicalAnalysisService();
 export default technicalAnalysisService;
+

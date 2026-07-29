@@ -329,20 +329,29 @@ export default function App() {
       setStrat13Data(res13);
       setAnalysisError(null);
 
-      // Process new signals if any
-      addNewSignal('Estrategia 1', res1);
-      addNewSignal('Estrategia 2', res2);
-      addNewSignal('Estrategia 3', res3);
-      addNewSignal('Estrategia 4', res4);
-      addNewSignal('Estrategia 5', res5);
-      addNewSignal('Estrategia 6', res6);
-      addNewSignal('Estrategia 7', res7);
-      addNewSignal('Estrategia 8', res8);
-      addNewSignal('Estrategia 9', res9);
-      addNewSignal('Estrategia 10', res10);
-      addNewSignal('Estrategia 11', res11);
-      addNewSignal('Estrategia 12', res12);
-      addNewSignal('Estrategia 13', res13);
+      const resultsMap = {
+        'Estrategia 1': res1,
+        'Estrategia 2': res2,
+        'Estrategia 3': res3,
+        'Estrategia 4': res4,
+        'Estrategia 5': res5,
+        'Estrategia 6': res6,
+        'Estrategia 7': res7,
+        'Estrategia 8': res8,
+        'Estrategia 9': res9,
+        'Estrategia 10': res10,
+        'Estrategia 11': res11,
+        'Estrategia 12': res12,
+        'Estrategia 13': res13,
+      };
+
+      // 1. Reevaluar y procesar invalidaciones prematuras de señales activas
+      processSignalInvalidations(resultsMap);
+
+      // 2. Procesar nuevas señales
+      Object.entries(resultsMap).forEach(([stratName, res]) => {
+        addNewSignal(stratName, res);
+      });
 
     } catch (err) {
       console.error('Error running technical analysis:', err);
@@ -359,6 +368,39 @@ export default function App() {
     const interval = setInterval(runTechnicalAnalysis, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Process early signal invalidation if strategy calculations flip or break hypothesis
+  const processSignalInvalidations = (resultsMap) => {
+    setSignalsHistory(prev => {
+      let updated = false;
+      const next = prev.map(sig => {
+        if (sig.status !== 'PENDING') return sig;
+
+        const freshRes = resultsMap[sig.strategy];
+        if (!freshRes) return sig;
+
+        const check = technicalAnalysisService.checkSignalInvalidation(sig, freshRes, btcPrice);
+        if (check.isInvalidated) {
+          updated = true;
+          const currentExitPrice = btcPrice || sig.entry;
+          addLog('Algoritmo', `⚠️ Señal ${sig.type} de ${sig.strategy} INVALIDADA PRECOZMENTE a $${formatPrice(currentExitPrice)}. Motivo: ${check.reason}`, 'down');
+          return {
+            ...sig,
+            status: 'INVALIDATED',
+            resolvedAt: Date.now(),
+            exitPrice: currentExitPrice,
+            invalidationReason: check.reason
+          };
+        }
+        return sig;
+      });
+
+      if (updated) {
+        localStorage.setItem('btc_signals_history', JSON.stringify(next));
+      }
+      return next;
+    });
+  };
 
   // Add new trading signal to history
   const addNewSignal = (strategyName, strategyResult) => {
@@ -425,13 +467,14 @@ export default function App() {
   // Calculate Win Rate statistics by strategy
   const getStatsByStrategy = (stratName) => {
     const resolved = signalsHistory.filter(s => s.strategy === stratName && (s.status === 'TP' || s.status === 'SL'));
-    if (resolved.length === 0) return { winRate: null, tpCount: 0, slCount: 0, total: 0 };
+    const invalidatedCount = signalsHistory.filter(s => s.strategy === stratName && s.status === 'INVALIDATED').length;
+    if (resolved.length === 0) return { winRate: null, tpCount: 0, slCount: 0, total: 0, invalidatedCount };
 
     const tpCount = resolved.filter(s => s.status === 'TP').length;
     const slCount = resolved.filter(s => s.status === 'SL').length;
     const winRate = Math.round((tpCount / resolved.length) * 100);
 
-    return { winRate, tpCount, slCount, total: resolved.length };
+    return { winRate, tpCount, slCount, total: resolved.length, invalidatedCount };
   };
 
   const stats1 = getStatsByStrategy('Estrategia 1');
@@ -447,6 +490,36 @@ export default function App() {
   const stats11 = getStatsByStrategy('Estrategia 11');
   const stats12 = getStatsByStrategy('Estrategia 12');
   const stats13 = getStatsByStrategy('Estrategia 13');
+
+  // Helper to render status badges cleanly
+  const renderSignalStatusBadge = (sig) => {
+    if (sig.status === 'PENDING') {
+      return (
+        <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
+          Pendiente
+        </span>
+      );
+    }
+    if (sig.status === 'TP') {
+      return <span style={{ color: 'var(--color-up)', fontWeight: 600 }}>✅ Acierto (TP)</span>;
+    }
+    if (sig.status === 'INVALIDATED') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+          <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            ⚠️ INVALIDADA <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>(Salida Precoz)</span>
+          </span>
+          {sig.invalidationReason && (
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', maxWidth: '240px', lineHeight: 1.25 }}>
+              {sig.invalidationReason}
+            </span>
+          )}
+        </div>
+      );
+    }
+    return <span style={{ color: 'var(--color-down)', fontWeight: 600 }}>❌ Pérdida (SL)</span>;
+  };
 
   // Calculate rolling CVD divergence situation
   const getCvdStatus = () => {
@@ -1720,16 +1793,7 @@ export default function App() {
                         <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
                         <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
                         <td style={{ padding: '0.75rem' }}>
-                          {sig.status === 'PENDING' ? (
-                            <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
-                              Pendiente
-                            </span>
-                          ) : sig.status === 'TP' ? (
-                            <span style={{ color: 'var(--color-up)', fontWeight: 600 }}>✅ Acierto (TP)</span>
-                          ) : (
-                            <span style={{ color: 'var(--color-down)', fontWeight: 600 }}>❌ Pérdida (SL)</span>
-                          )}
+                          {renderSignalStatusBadge(sig)}
                         </td>
                       </tr>
                     );
@@ -1876,16 +1940,7 @@ export default function App() {
                         <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
                         <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
                         <td style={{ padding: '0.75rem' }}>
-                          {sig.status === 'PENDING' ? (
-                            <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
-                              Pendiente
-                            </span>
-                          ) : sig.status === 'TP' ? (
-                            <span style={{ color: 'var(--color-up)', fontWeight: 600 }}>✅ Acierto (TP)</span>
-                          ) : (
-                            <span style={{ color: 'var(--color-down)', fontWeight: 600 }}>❌ Pérdida (SL)</span>
-                          )}
+                          {renderSignalStatusBadge(sig)}
                         </td>
                       </tr>
                     );
@@ -2032,16 +2087,7 @@ export default function App() {
                         <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
                         <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
                         <td style={{ padding: '0.75rem' }}>
-                          {sig.status === 'PENDING' ? (
-                            <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
-                              Pendiente
-                            </span>
-                          ) : sig.status === 'TP' ? (
-                            <span style={{ color: 'var(--color-up)', fontWeight: 600 }}>✅ Acierto (TP)</span>
-                          ) : (
-                            <span style={{ color: 'var(--color-down)', fontWeight: 600 }}>❌ Pérdida (SL)</span>
-                          )}
+                          {renderSignalStatusBadge(sig)}
                         </td>
                       </tr>
                     );
@@ -2186,16 +2232,7 @@ export default function App() {
                         <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
                         <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
                         <td style={{ padding: '0.75rem' }}>
-                          {sig.status === 'PENDING' ? (
-                            <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
-                              Pendiente
-                            </span>
-                          ) : sig.status === 'TP' ? (
-                            <span style={{ color: 'var(--color-up)', fontWeight: 600 }}>✅ Acierto (TP)</span>
-                          ) : (
-                            <span style={{ color: 'var(--color-down)', fontWeight: 600 }}>❌ Pérdida (SL)</span>
-                          )}
+                          {renderSignalStatusBadge(sig)}
                         </td>
                       </tr>
                     );
