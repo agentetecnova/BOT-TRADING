@@ -2107,6 +2107,115 @@ class TechnicalAnalysisService {
 
     return { isInvalidated: false, reason: null };
   }
+
+  /**
+   * Calculates a Master Consensus Signal by evaluating agreement across strategy families.
+   * Families: Core (1-4), Quant (5-7), Institutional (8-10), Scalping (11-13)
+   *
+   * @param {Object} resultsMap - Map of strategy names to strategy calculation results
+   * @returns {Object} Master consensus analysis and signal
+   */
+  calculateMasterConsensus(resultsMap) {
+    if (!resultsMap) return { hasConsensus: false, bias: 'NEUTRAL / SIN CONSENSO' };
+
+    const families = {
+      Core: ['Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4'],
+      Quant: ['Estrategia 5', 'Estrategia 6', 'Estrategia 7'],
+      Institucional: ['Estrategia 8', 'Estrategia 9', 'Estrategia 10'],
+      Scalping: ['Estrategia 11', 'Estrategia 12', 'Estrategia 13']
+    };
+
+    let longVotes = 0;
+    let shortVotes = 0;
+    let totalPUp = 0;
+    let countPUp = 0;
+    const agreeingLongStrats = [];
+    const agreeingShortStrats = [];
+    const activeFamiliesLong = new Set();
+    const activeFamiliesShort = new Set();
+
+    Object.entries(families).forEach(([famName, stratNames]) => {
+      stratNames.forEach(stratName => {
+        const res = resultsMap[stratName];
+        if (res && res.success) {
+          if (res.pUp !== undefined) {
+            totalPUp += res.pUp;
+            countPUp++;
+          }
+          if (res.hasSignal && res.signal) {
+            if (res.signal.type === 'LONG') {
+              longVotes++;
+              agreeingLongStrats.push(stratName);
+              activeFamiliesLong.add(famName);
+            } else if (res.signal.type === 'SHORT') {
+              shortVotes++;
+              agreeingShortStrats.push(stratName);
+              activeFamiliesShort.add(famName);
+            }
+          }
+        }
+      });
+    });
+
+    const avgPUp = countPUp > 0 ? Math.round(totalPUp / countPUp) : 50;
+    const avgPDown = 100 - avgPUp;
+
+    let masterSignal = null;
+    let hasConsensus = false;
+    let conviction = 'NEUTRAL';
+    let bias = 'NEUTRAL / SIN CONSENSO';
+
+    if (longVotes >= 3 && activeFamiliesLong.size >= 2 && avgPUp >= 58) {
+      hasConsensus = true;
+      conviction = activeFamiliesLong.size >= 3 ? 'ALTA (3+ Familias)' : 'MEDIA';
+      bias = 'COMPRA INSTITUCIONAL / CONSENSO ALCISTA';
+
+      masterSignal = {
+        type: 'LONG',
+        conviction,
+        agreeingCount: longVotes,
+        familiesCount: activeFamiliesLong.size,
+        agreeingStrategies: agreeingLongStrats,
+        avgPUp,
+        avgPDown,
+        reasons: [
+          `Confluencia de ${longVotes} estrategias en ${activeFamiliesLong.size} familias (${Array.from(activeFamiliesLong).join(', ')})`,
+          `Probabilidad promedio alcista del mercado: ${avgPUp}%`
+        ]
+      };
+    } else if (shortVotes >= 3 && activeFamiliesShort.size >= 2 && avgPDown >= 58) {
+      hasConsensus = true;
+      conviction = activeFamiliesShort.size >= 3 ? 'ALTA (3+ Familias)' : 'MEDIA';
+      bias = 'VENTA INSTITUCIONAL / CONSENSO BAJISTA';
+
+      masterSignal = {
+        type: 'SHORT',
+        conviction,
+        agreeingCount: shortVotes,
+        familiesCount: activeFamiliesShort.size,
+        agreeingStrategies: agreeingShortStrats,
+        avgPUp,
+        avgPDown,
+        reasons: [
+          `Confluencia de ${shortVotes} estrategias en ${activeFamiliesShort.size} familias (${Array.from(activeFamiliesShort).join(', ')})`,
+          `Probabilidad promedio bajista del mercado: ${avgPDown}%`
+        ]
+      };
+    }
+
+    return {
+      hasConsensus,
+      bias,
+      conviction,
+      longVotes,
+      shortVotes,
+      avgPUp,
+      avgPDown,
+      agreeingLongStrats,
+      agreeingShortStrats,
+      masterSignal
+    };
+  }
 }
 
 const technicalAnalysisService = new TechnicalAnalysisService();

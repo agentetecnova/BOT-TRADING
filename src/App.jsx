@@ -40,6 +40,8 @@ export default function App() {
   const [strat11Data, setStrat11Data] = useState(null);
   const [strat12Data, setStrat12Data] = useState(null);
   const [strat13Data, setStrat13Data] = useState(null);
+  const [masterConsensusData, setMasterConsensusData] = useState(null);
+  const [renderServerStatus, setRenderServerStatus] = useState('syncing'); // 'connected' | 'syncing' | 'local'
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState(null);
 
@@ -57,6 +59,38 @@ export default function App() {
       setSignalsHistory(JSON.parse(saved));
     }
     addLog('Sistema', 'Terminal de Análisis Técnico de BTC Inicializada');
+  }, []);
+
+  // Poll Render 24/7 API for background signals and server state
+  useEffect(() => {
+    const fetchRenderSignals = async () => {
+      try {
+        const renderUrl = 'https://bot-trading-2.onrender.com/api/signals';
+        const res = await fetch(renderUrl, { cache: 'no-cache' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.history && Array.isArray(data.history) && data.history.length > 0) {
+            setSignalsHistory(prev => {
+              const ids = new Set(data.history.map(s => s.id));
+              const localOnly = prev.filter(s => !ids.has(s.id));
+              const merged = [...data.history, ...localOnly].sort((a, b) => b.timestamp - a.timestamp);
+              localStorage.setItem('btc_signals_history', JSON.stringify(merged));
+              return merged;
+            });
+          }
+          if (data && data.masterConsensus) {
+            setMasterConsensusData(data.masterConsensus);
+          }
+          setRenderServerStatus('connected');
+        }
+      } catch (err) {
+        setRenderServerStatus('local');
+      }
+    };
+
+    fetchRenderSignals();
+    const interval = setInterval(fetchRenderSignals, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   // Set up live price WebSocket connection (Binance WS for BTCUSDT)
@@ -344,6 +378,10 @@ export default function App() {
         'Estrategia 12': res12,
         'Estrategia 13': res13,
       };
+
+      // Calcular Consenso Maestro de forma transparente e independiente
+      const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap);
+      setMasterConsensusData(masterConsensus);
 
       // 1. Reevaluar y procesar invalidaciones prematuras de señales activas
       processSignalInvalidations(resultsMap);
@@ -671,6 +709,97 @@ export default function App() {
           🔥 COMPRESIÓN DE VOLATILIDAD (Bollinger Squeeze): Ancho de bandas {(strat4Data.bbw * 100).toFixed(2)}%. Gran movimiento inminente en los próximos días. Filtro macro semanal: {strat4Data.pUp > strat4Data.pDown ? 'ALCISTA (LONG)' : 'BAJISTA (SHORT)'}.
         </div>
       )}
+
+      {/* ⭐ PANEL DE RESUMEN: SEÑAL MAESTRA POR CONSENSO (INDEPENDIENTE) */}
+      <div className="glass-panel" style={{
+        padding: '1.25rem 1.5rem',
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.65) 100%)',
+        border: '1px solid rgba(245, 158, 11, 0.25)',
+        borderRadius: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>⭐</span>
+              <h2 style={{ fontSize: '1.15rem', color: '#fff', margin: 0, fontWeight: 700 }}>
+                Resumen de Consenso Institucional & Señal Maestra
+              </h2>
+              <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
+                Módulo Independiente
+              </span>
+            </div>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
+              Evaluación agregada de confluencia entre las 13 estrategias sin alterar los algoritmos individuales.
+            </p>
+          </div>
+
+          {/* Render Server status pill */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: renderServerStatus === 'connected' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', padding: '0.35rem 0.75rem', borderRadius: '20px', border: `1px solid ${renderServerStatus === 'connected' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`, fontSize: '0.75rem', fontWeight: 600, color: renderServerStatus === 'connected' ? '#10b981' : '#f59e0b' }}>
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: renderServerStatus === 'connected' ? '#10b981' : '#f59e0b', display: 'inline-block' }}></span>
+            {renderServerStatus === 'connected' ? '🟢 Servidor 24/7 Conectado (Render)' : '🟡 Servidor 24/7 Sincronizando...'}
+          </div>
+        </div>
+
+        {masterConsensusData ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'center' }}>
+            {/* Consenso Direccional */}
+            <div style={{ padding: '0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Sesgo Global Agregado</span>
+              <div style={{ fontSize: '1rem', fontWeight: 800, marginTop: '0.2rem', color: masterConsensusData.masterSignal ? (masterConsensusData.masterSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)') : '#cbd5e1' }}>
+                {masterConsensusData.bias}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                Probabilidad promedio: <strong style={{ color: '#fff' }}>{masterConsensusData.avgPUp}% Alcista</strong> / {masterConsensusData.avgPDown}% Bajista
+              </div>
+            </div>
+
+            {/* Votación de Estrategias */}
+            <div style={{ padding: '0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Votación de Estrategias</span>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.3rem' }}>
+                <span style={{ color: 'var(--color-up)', fontWeight: 800, fontSize: '1.1rem' }}>
+                  🟢 {masterConsensusData.longVotes} LONG
+                </span>
+                <span style={{ color: 'var(--color-down)', fontWeight: 800, fontSize: '1.1rem' }}>
+                  🔴 {masterConsensusData.shortVotes} SHORT
+                </span>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                Convicción: <strong style={{ color: '#f59e0b' }}>{masterConsensusData.conviction}</strong>
+              </div>
+            </div>
+
+            {/* Estado de la Señal Maestra */}
+            <div style={{ padding: '0.9rem', background: masterConsensusData.hasConsensus ? (masterConsensusData.masterSignal && masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.05)' : 'rgba(255, 23, 68, 0.05)') : 'rgba(255,255,255,0.015)', border: `1px solid ${masterConsensusData.hasConsensus ? (masterConsensusData.masterSignal && masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)') : 'rgba(255,255,255,0.03)'}`, borderRadius: '12px' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Señal Maestra de Alta Confluencia</span>
+              {masterConsensusData.hasConsensus && masterConsensusData.masterSignal ? (
+                <div style={{ marginTop: '0.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ padding: '0.2rem 0.5rem', borderRadius: '6px', background: masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)', color: masterConsensusData.masterSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 800, fontSize: '0.9rem' }}>
+                      {masterConsensusData.masterSignal.type} MASTER
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
+                      {masterConsensusData.masterSignal.agreeingCount} Estrategias en Confluencia
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.3rem' }}>
+                    Alineadas: {masterConsensusData.masterSignal.agreeingStrategies.join(', ')}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.3rem' }}>
+                  ⚪ Esperando confluencia de 3+ estrategias en 2+ familias distintas...
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Cargando análisis de consenso...</div>
+        )}
+      </div>
 
       {/* TAB SYSTEM NAV SELECTOR */}
       <div className="tab-switcher">

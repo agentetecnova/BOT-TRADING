@@ -126,7 +126,8 @@ async function runContinuousAnalysis() {
       'Estrategia 13': res13,
     };
 
-    latestAnalysis = resultsMap;
+    const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap);
+    latestAnalysis = { ...resultsMap, masterConsensus };
 
     // Verificar TP / SL por precio en señales activas
     if (lastBtcPrice) {
@@ -178,7 +179,8 @@ app.get('/', (req, res) => {
     uptimeSeconds: Math.floor(process.uptime()),
     lastBtcPrice,
     pendingSignalsCount: signalsHistory.filter(s => s.status === 'PENDING').length,
-    totalSignalsHistory: signalsHistory.length
+    totalSignalsHistory: signalsHistory.length,
+    masterConsensus: latestAnalysis.masterConsensus || null
   });
 });
 
@@ -190,7 +192,8 @@ app.get('/api/signals', (req, res) => {
   res.json({
     btcPrice: lastBtcPrice,
     history: signalsHistory,
-    latestAnalysis
+    latestAnalysis,
+    masterConsensus: latestAnalysis.masterConsensus || null
   });
 });
 
