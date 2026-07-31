@@ -77,6 +77,9 @@ class BTCMasterAnalysisService {
         fearAndGreed,
         liquidationHeatmap,
         analysis4h,
+        analysis1d,
+        analysis1w,
+        priceZones,
         riskFlags,
         probabilities,
         klinesMap

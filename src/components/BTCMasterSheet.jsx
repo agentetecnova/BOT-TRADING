@@ -58,12 +58,12 @@ export default function BTCMasterSheet() {
     );
   }
 
-  const p = data.currentPrice;
-  const z = data.priceZones;
-  const l = z.longSetup;
-  const s = z.shortSetup;
-  const a4 = data.analysis4h;
-  const a1d = data.analysis1d;
+  const p = data.currentPrice || 0;
+  const z = data.priceZones || { r1: 0, r2: 0, s1: 0, s2: 0, longSetup: {}, shortSetup: {} };
+  const l = z.longSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
+  const s = z.shortSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
+  const a4 = data.analysis4h || { trend: { score: 0, details: [] }, momentum: { score: 0, details: [] }, volatility: { score: 0, details: [] }, volume: { score: 0, details: [], cmf: 0, vwap: p }, advanced: { score: 0, details: [], wyckoff: { phase: 'N/A' }, smc: { orderBlocks: [] }, fibs: {}, onchain: { fundingRate: 0 } }, candles: {} };
+  const a1d = data.analysis1d || { trend: { score: 0, details: [] }, momentum: { score: 0, details: [] }, volatility: { score: 0, details: [], atr: 0 }, volume: { score: 0, details: [] }, advanced: { score: 0, details: [], fibs: { '0.618': p } }, candles: {} };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
