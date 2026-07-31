@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import technicalAnalysisService from './services/TechnicalAnalysisService';
+import BTCMasterSheet from './components/BTCMasterSheet';
 import './App.css';
 
 export default function App() {
+  // Navigation State for Independent Sheets
+  const [selectedSheet, setSelectedSheet] = useState('sheet1'); // 'sheet1' | 'sheet2'
+
   // Live BTC data
   const [btcPrice, setBtcPrice] = useState(null);
   const [btcChange24h, setBtcChange24h] = useState(null);
@@ -604,8 +608,72 @@ export default function App() {
   return (
     <div className="app-container">
       
-      {/* HEADER PANEL */}
-      <header className="glass-panel" style={{ padding: '2rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
+      {/* 🟢 SELECTOR PRINCIPAL DE HOJAS (MODO TOTALMENTE INDEPENDIENTE) */}
+      <div className="glass-panel" style={{
+        display: 'flex',
+        gap: '0.75rem',
+        background: 'rgba(15, 23, 42, 0.85)',
+        padding: '0.6rem 0.85rem',
+        borderRadius: '16px',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', flex: 1, width: '100%' }}>
+          <button
+            onClick={() => setSelectedSheet('sheet1')}
+            style={{
+              flex: 1,
+              minWidth: '200px',
+              padding: '0.75rem 1.25rem',
+              borderRadius: '12px',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              background: selectedSheet === 'sheet1' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${selectedSheet === 'sheet1' ? '#f59e0b' : 'rgba(255,255,255,0.05)'}`,
+              color: selectedSheet === 'sheet1' ? '#fff' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.25 ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            🛸 HOJA 1: Bot Multi-Estrategia (13 Algoritmos)
+          </button>
+          <button
+            onClick={() => setSelectedSheet('sheet2')}
+            style={{
+              flex: 1,
+              minWidth: '200px',
+              padding: '0.75rem 1.25rem',
+              borderRadius: '12px',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              background: selectedSheet === 'sheet2' ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${selectedSheet === 'sheet2' ? '#a855f7' : 'rgba(255,255,255,0.05)'}`,
+              color: selectedSheet === 'sheet2' ? '#fff' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.25s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            👑 HOJA 2: BTC Master Pro (Prompter Maestro)
+          </button>
+        </div>
+      </div>
+
+      {selectedSheet === 'sheet2' ? (
+        <BTCMasterSheet />
+      ) : (
+        <>
+          {/* HEADER PANEL */}
+          <header className="glass-panel" style={{ padding: '2rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
         <div>
           <h1 style={{ fontSize: '2rem', background: 'linear-gradient(to right, #ffffff, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             🛸 Antigravity BTC Quant Terminal
@@ -2413,6 +2481,8 @@ export default function App() {
         <div>Antigravity BTC Quant Terminal v2.0.0</div>
         <div>Análisis fractal & Motor de efectividad local</div>
       </footer>
+        </>
+      )}
     </div>
   );
 }
