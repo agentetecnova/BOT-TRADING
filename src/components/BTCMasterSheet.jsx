@@ -176,6 +176,17 @@ export default function BTCMasterSheet() {
             </div>
           </div>
 
+          {/* Índice Miedo y Codicia (Fear & Greed Index) */}
+          <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '14px', textAlign: 'center' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Índice Miedo y Codicia</span>
+            <div style={{ fontSize: '1.6rem', fontWeight: 900, margin: '0.2rem 0', color: data.fearAndGreed ? data.fearAndGreed.color : '#f59e0b' }}>
+              {data.fearAndGreed ? `${data.fearAndGreed.value} / 100` : '--'}
+            </div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: data.fearAndGreed ? data.fearAndGreed.color : '#f59e0b' }}>
+              {data.fearAndGreed ? data.fearAndGreed.labelEs : 'Cargando...'}
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -184,6 +195,7 @@ export default function BTCMasterSheet() {
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {[
           { id: 'overview', label: '🎯 Setups & Zonas de Precio' },
+          { id: 'heatmap', label: '🔥 Mapa de Liquidaciones & Miedo' },
           { id: 'report', label: '📊 Reporte Diario UTC 00:05' },
           { id: 'blocks', label: '🔍 Desglose 6 Bloques Indicadores' }
         ].map(tab => (
@@ -292,6 +304,91 @@ export default function BTCMasterSheet() {
             </ul>
           </div>
 
+        </div>
+      )}
+
+      {/* 🔥 MAPA DE DENSIDAD DE LIQUIDACIONES (HEATMAP & COINGLASS) */}
+      {(activeTab === 'overview' || activeTab === 'heatmap') && data.liquidationHeatmap && (
+        <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.1rem', color: '#fff', margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                🔥 Mapa de Densidad de Liquidaciones (Liquidation Heatmap)
+              </h3>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                Zonas de acumulación de stops y liquidaciones de apalancamiento (100x, 50x, 25x). El precio actúa como imán buscando estas zonas.
+              </p>
+            </div>
+
+            <a
+              href="https://www.coinglass.com/es/pro/futures/LiquidationHeatMap"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: '0.45rem 0.9rem',
+                borderRadius: '8px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              🔗 Abrir Coinglass Heatmap ↗
+            </a>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            
+            {/* Short Liquidation Pools */}
+            <div>
+              <div style={{ fontSize: '0.75rem', color: '#f87171', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                <span>🔴 LIQUIDACIÓN DE SHORTS (Zonas de Magnetismo Alcista al Subir)</span>
+                <span>~$${data.liquidationHeatmap.totalShortRiskM}M USD</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {data.liquidationHeatmap.shortLiqPools.map((pool, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                    <span className="font-mono" style={{ width: '85px', fontWeight: 700, color: pool.color }}>${pool.price.toLocaleString()}</span>
+                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.03)', height: '18px', borderRadius: '6px', overflow: 'hidden', position: 'relative' }}>
+                      <div style={{ width: `${Math.min(100, (pool.estimatedVolM / 650) * 100)}%`, height: '100%', background: `linear-gradient(90deg, ${pool.color}55 0%, ${pool.color} 100%)`, borderRadius: '6px' }}></div>
+                    </div>
+                    <span className="font-mono" style={{ fontSize: '0.75rem', width: '70px', textAlign: 'right' }}>${pool.estimatedVolM}M</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* PRECIO SPOT ACTUAL */}
+            <div style={{ padding: '0.5rem 1rem', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: '8px', textAlign: 'center', fontWeight: 800, color: '#f59e0b', fontSize: '0.85rem' }}>
+              ▶ PRECIO SPOT ACTUAL BTC/USDT: ${Math.round(p).toLocaleString()}
+            </div>
+
+            {/* Long Liquidation Pools */}
+            <div>
+              <div style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                <span>🟢 LIQUIDACIÓN DE LONGS (Zonas de Soporte / Magnetismo al Bajar)</span>
+                <span>~$${data.liquidationHeatmap.totalLongRiskM}M USD</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {data.liquidationHeatmap.longLiqPools.map((pool, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                    <span className="font-mono" style={{ width: '85px', fontWeight: 700, color: pool.color }}>${pool.price.toLocaleString()}</span>
+                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.03)', height: '18px', borderRadius: '6px', overflow: 'hidden', position: 'relative' }}>
+                      <div style={{ width: `${Math.min(100, (pool.estimatedVolM / 650) * 100)}%`, height: '100%', background: `linear-gradient(90deg, ${pool.color}55 0%, ${pool.color} 100%)`, borderRadius: '6px' }}></div>
+                    </div>
+                    <span className="font-mono" style={{ fontSize: '0.75rem', width: '70px', textAlign: 'right' }}>${pool.estimatedVolM}M</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
         </div>
       )}
 

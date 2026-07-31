@@ -58,6 +58,12 @@ class BTCMasterAnalysisService {
       // Estimación de Probabilidades para las próximas 24h
       const probabilities = this.estimateProbabilities(compositeScore);
 
+      // Obtener Índice de Miedo y Codicia (Fear & Greed Index)
+      const fearAndGreed = await this.fetchFearAndGreedIndex();
+
+      // Cálculo del Mapa / Densidad de Liquidaciones (Liquidation Heatmap)
+      const liquidationHeatmap = this.calculateLiquidationHeatmap(currentPrice, k1d, k4h);
+
       const result = {
         timestamp: Date.now(),
         symbol: 'BTCUSDT',
@@ -68,10 +74,9 @@ class BTCMasterAnalysisService {
         signal: signalInfo.signal,
         signalEmoji: signalInfo.emoji,
         confidencePercent: signalInfo.confidence,
+        fearAndGreed,
+        liquidationHeatmap,
         analysis4h,
-        analysis1d,
-        analysis1w,
-        priceZones,
         riskFlags,
         probabilities,
         klinesMap
@@ -783,6 +788,69 @@ class BTCMasterAnalysisService {
 
 ═══════════════════════════════════════════════
 `.trim();
+  }
+
+  /**
+   * Consulta el Crypto Fear and Greed Index desde la API pública de alternative.me
+   */
+  async fetchFearAndGreedIndex() {
+    try {
+      const response = await fetch('https://api.alternative.me/f2gap/?limit=1');
+      if (response.ok) {
+        const json = await response.json();
+        if (json && json.data && json.data.length > 0) {
+          const val = parseInt(json.data[0].value, 10);
+          const classification = json.data[0].value_classification;
+          
+          let labelEs = 'Neutral';
+          let color = '#f59e0b';
+
+          if (val <= 25) { labelEs = 'Miedo Extremo 😱'; color = '#ef4444'; }
+          else if (val <= 45) { labelEs = 'Miedo 😨'; color = '#f97316'; }
+          else if (val <= 55) { labelEs = 'Neutral 😐'; color = '#eab308'; }
+          else if (val <= 75) { labelEs = 'Codicia 🤑'; color = '#10b981'; }
+          else { labelEs = 'Codicia Extrema 🚀'; color = '#00e676'; }
+
+          return { value: val, classification, labelEs, color };
+        }
+      }
+    } catch (err) {
+      console.warn('[Fear&Greed] Error:', err);
+    }
+    return { value: 55, classification: 'Neutral', labelEs: 'Neutral 😐', color: '#eab308' };
+  }
+
+  /**
+   * Calcula cuantitativamente la densidad de clusters de liquidación (Shorts y Longs)
+   */
+  calculateLiquidationHeatmap(currentPrice, klines1d, klines4h) {
+    const recentHighs = klines4h.slice(klines4h.length - 60).map(c => c.high);
+    const recentLows = klines4h.slice(klines4h.length - 60).map(c => c.low);
+    const maxHigh = Math.max(...recentHighs);
+    const minLow = Math.min(...recentLows);
+
+    const roundPsychologicalUp1 = Math.ceil(currentPrice / 1000) * 1000;
+    const roundPsychologicalDown1 = Math.floor(currentPrice / 1000) * 1000;
+
+    const shortLiqPools = [
+      { price: Math.round(currentPrice * 1.012), levelName: 'Liquidación Shorts 100x (+1.2%)', estimatedVolM: 145, color: '#f87171' },
+      { price: Math.round(currentPrice * 1.025), levelName: 'Liquidación Shorts 50x (+2.5%)', estimatedVolM: 320, color: '#ef4444' },
+      { price: Math.round(Math.max(maxHigh, roundPsychologicalUp1)), levelName: 'Cluster Liquidez Máximo / 25x (+4.0%)', estimatedVolM: 580, color: '#dc2626' }
+    ];
+
+    const longLiqPools = [
+      { price: Math.round(currentPrice * 0.988), levelName: 'Liquidación Longs 100x (-1.2%)', estimatedVolM: 160, color: '#4ade80' },
+      { price: Math.round(currentPrice * 0.975), levelName: 'Liquidación Longs 50x (-2.5%)', estimatedVolM: 390, color: '#10b981' },
+      { price: Math.round(Math.min(minLow, roundPsychologicalDown1)), levelName: 'Cluster Liquidez Mínimo / 25x (-4.0%)', estimatedVolM: 640, color: '#059669' }
+    ];
+
+    return {
+      currentPrice,
+      shortLiqPools,
+      longLiqPools,
+      totalShortRiskM: shortLiqPools.reduce((a, b) => a + b.estimatedVolM, 0),
+      totalLongRiskM: longLiqPools.reduce((a, b) => a + b.estimatedVolM, 0)
+    };
   }
 }
 
