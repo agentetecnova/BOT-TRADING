@@ -312,11 +312,16 @@ export default function BTCMasterSheet() {
         <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h3 style={{ fontSize: '1.1rem', color: '#fff', margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                🔥 Mapa de Densidad de Liquidaciones (Liquidation Heatmap)
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <h3 style={{ fontSize: '1.1rem', color: '#fff', margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  🔥 Mapa de Densidad de Liquidaciones (Liquidation Heatmap)
+                </h3>
+                <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', borderRadius: '6px', fontWeight: 700 }}>
+                  ⏱️ Ventana: 24hs (Intradiario)
+                </span>
+              </div>
               <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
-                Zonas de acumulación de stops y liquidaciones de apalancamiento (100x, 50x, 25x). El precio actúa como imán buscando estas zonas.
+                Zonas de acumulación de stops y liquidaciones de apalancamiento (100x, 50x, 25x) en las últimas 24hs. El precio actúa como imán buscando estas zonas.
               </p>
             </div>
 
