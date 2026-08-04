@@ -56,13 +56,9 @@ export default function App() {
   // Auto-scroll logs
   const consoleRef = useRef(null);
 
-  // Load signals from localStorage on mount
+  // Mount effect
   useEffect(() => {
-    const saved = localStorage.getItem('btc_signals_history');
-    if (saved) {
-      setSignalsHistory(JSON.parse(saved));
-    }
-    addLog('Sistema', 'Terminal de Análisis Técnico de BTC Inicializada');
+    addLog('Sistema', 'Terminal de Análisis Técnico de BTC Inicializada (Conexión 100% Nube 24/7)');
   }, []);
 
   // Poll Render 24/7 API for background signals and server state
@@ -73,14 +69,8 @@ export default function App() {
         const res = await fetch(renderUrl, { cache: 'no-cache' });
         if (res.ok) {
           const data = await res.json();
-          if (data && data.history && Array.isArray(data.history) && data.history.length > 0) {
-            setSignalsHistory(prev => {
-              const ids = new Set(data.history.map(s => s.id));
-              const localOnly = prev.filter(s => !ids.has(s.id));
-              const merged = [...data.history, ...localOnly].sort((a, b) => b.timestamp - a.timestamp);
-              localStorage.setItem('btc_signals_history', JSON.stringify(merged));
-              return merged;
-            });
+          if (data && data.history && Array.isArray(data.history)) {
+            setSignalsHistory(data.history);
           }
           if (data && data.masterConsensus) {
             setMasterConsensusData(data.masterConsensus);
@@ -296,9 +286,6 @@ export default function App() {
         return sig;
       });
 
-      if (updated) {
-        localStorage.setItem('btc_signals_history', JSON.stringify(next));
-      }
       return next;
     });
   }, [btcPrice]);
@@ -437,9 +424,6 @@ export default function App() {
         return sig;
       });
 
-      if (updated) {
-        localStorage.setItem('btc_signals_history', JSON.stringify(next));
-      }
       return next;
     });
   };
@@ -470,8 +454,6 @@ export default function App() {
       };
 
       const next = [newSignal, ...prev];
-      localStorage.setItem('btc_signals_history', JSON.stringify(next));
-
       addLog('Algoritmo', `Nueva señal ${sig.type} generada por ${strategyName} a $${formatPrice(sig.entry)}`);
       return next;
     });
@@ -488,7 +470,6 @@ export default function App() {
   const handleClearHistory = () => {
     if (window.confirm('¿Seguro que deseas vaciar el historial de señales?')) {
       setSignalsHistory([]);
-      localStorage.removeItem('btc_signals_history');
       addLog('Sistema', 'Historial de señales eliminado');
     }
   };

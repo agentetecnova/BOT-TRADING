@@ -6,130 +6,56 @@ export default function BTCMasterSheet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [masterHistory, setMasterHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('btc_master_history_v1');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [masterHistory, setMasterHistory] = useState([]);
   const [historyFilter, setHistoryFilter] = useState('ALL');
 
-  const updateMasterHistory = (freshData) => {
-    if (!freshData || !freshData.currentPrice || !freshData.priceZones) return;
+  const RENDER_API = 'https://bot-trading-2.onrender.com';
 
-    setMasterHistory(prev => {
-      let updated = [...prev];
-      const p = freshData.currentPrice;
-      const score = freshData.compositeScore;
-      const z = freshData.priceZones;
-      const sigText = freshData.signal;
-      const sigEmoji = freshData.signalEmoji;
-      const isActionable = Math.abs(score) >= 1.0;
-
-      // 1. Evaluar señales PENDING existentes
-      updated = updated.map(item => {
-        if (item.status !== 'PENDING') return item;
-
-        if (item.direction === 'LONG') {
-          if (p >= item.tp1) {
-            const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
-            return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+  const fetchServerMasterHistory = async () => {
+    try {
+      const response = await fetch(`${RENDER_API}/api/master-signals`);
+      if (response.ok) {
+        const json = await response.json();
+        if (json && json.history) {
+          setMasterHistory(json.history);
+          if (json.data) {
+            setData(json.data);
           }
-          if (p <= item.sl) {
-            const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
-            return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
-          }
-          if (score <= -2.5) {
-            const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
-            return {
-              ...item,
-              status: 'INVALIDATED',
-              exitPrice: p,
-              pnlPercent: pnl,
-              resolvedAt: Date.now(),
-              invalidationReason: `Giro de estrategia a bajista (Score: ${score})`
-            };
-          }
-        } else if (item.direction === 'SHORT') {
-          if (p <= item.tp1) {
-            const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
-            return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
-          }
-          if (p >= item.sl) {
-            const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
-            return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
-          }
-          if (score >= 2.5) {
-            const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
-            return {
-              ...item,
-              status: 'INVALIDATED',
-              exitPrice: p,
-              pnlPercent: pnl,
-              resolvedAt: Date.now(),
-              invalidationReason: `Giro de estrategia a alcista (Score: ${score})`
-            };
-          }
-        }
-        return item;
-      });
-
-      // 2. Registrar nueva señal si es accionable y no hay una PENDING idéntica
-      if (isActionable) {
-        const direction = score > 0 ? 'LONG' : 'SHORT';
-        const setup = direction === 'LONG' ? z.longSetup : z.shortSetup;
-        const hasPendingSameDir = updated.some(item => item.status === 'PENDING' && item.direction === direction);
-
-        if (!hasPendingSameDir && setup && setup.tp1 && setup.sl) {
-          const nowStr = new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' });
-          const newSignalObj = {
-            id: `master_${Date.now()}`,
-            timestamp: nowStr,
-            createdAt: Date.now(),
-            direction,
-            signalLabel: `${sigText} ${sigEmoji}`,
-            score,
-            confidencePercent: freshData.confidencePercent || 80,
-            entryPrice: Math.round(p),
-            tp1: setup.tp1,
-            tp2: setup.tp2,
-            sl: setup.sl,
-            rr: setup.rr,
-            status: 'PENDING',
-            exitPrice: null,
-            pnlPercent: 0,
-            invalidationReason: null
-          };
-          updated.unshift(newSignalObj);
+          return true;
         }
       }
-
-      // Guardar en localStorage
-      try {
-        localStorage.setItem('btc_master_history_v1', JSON.stringify(updated.slice(0, 100)));
-      } catch (e) {}
-
-      return updated;
-    });
+    } catch (err) {
+      console.warn('[Sync Cloud] Error conectando con el servidor en la nube de Hoja 2:', err);
+    }
+    return false;
   };
 
   const runAnalysis = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await btcMasterAnalysisService.runFullMasterAnalysis();
-      if (res.success) {
-        setData(res.data);
-        updateMasterHistory(res.data);
-      } else {
-        setError(res.error || 'Error al calcular el análisis de Hoja 2');
+      const synced = await fetchServerMasterHistory();
+      if (!synced) {
+        const res = await btcMasterAnalysisService.runFullMasterAnalysis();
+        if (res.success) {
+          setData(res.data);
+        } else {
+          setError(res.error || 'Error al calcular el análisis de Hoja 2');
+        }
       }
     } catch (err) {
-      setError(err.message || 'Error de conexión');
+      setError(err.message || 'Error de conexión con la nube');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const clearMasterHistory = async () => {
+    if (window.confirm('¿Seguro que deseas borrar el historial de señales de Hoja 2 en la nube para todos los dispositivos?')) {
+      setMasterHistory([]);
+      try {
+        await fetch(`${RENDER_API}/api/master-signals/clear`, { method: 'POST' });
+      } catch (e) {}
     }
   };
 
@@ -399,12 +325,7 @@ export default function BTCMasterSheet() {
 
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => {
-                    if (window.confirm('¿Seguro que deseas borrar el historial de señales de Hoja 2?')) {
-                      setMasterHistory([]);
-                      localStorage.removeItem('btc_master_history_v1');
-                    }
-                  }}
+                  onClick={clearMasterHistory}
                   style={{
                     padding: '0.4rem 0.8rem',
                     borderRadius: '8px',

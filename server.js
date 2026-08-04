@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import technicalAnalysisService from './src/services/TechnicalAnalysisService.js';
+import btcMasterAnalysisService from './src/services/BTCMasterAnalysisService.js';
 
 const app = express();
 app.use(cors());
@@ -10,7 +11,9 @@ const PORT = process.env.PORT || 3000;
 
 // Estado del Servidor 24/7
 let signalsHistory = [];
+let masterSignalsHistory = [];
 let latestAnalysis = {};
+let latestMasterAnalysis = null;
 let isRunningAnalysis = false;
 let lastBtcPrice = null;
 
@@ -18,6 +21,104 @@ let lastBtcPrice = null;
 function log(source, message, type = 'info') {
   const time = new Date().toISOString();
   console.log(`[${time}] [${source}] [${type.toUpperCase()}] ${message}`);
+}
+
+// Procesar señales de Hoja 2 en el servidor 24/7 (Sincronizado para todos los dispositivos)
+function processMasterSignals247(freshData) {
+  if (!freshData || !freshData.currentPrice || !freshData.priceZones) return;
+
+  const p = freshData.currentPrice;
+  const score = freshData.compositeScore;
+  const z = freshData.priceZones;
+  const sigText = freshData.signal;
+  const sigEmoji = freshData.signalEmoji;
+  const isActionable = Math.abs(score) >= 1.0;
+
+  // 1. Evaluar señales PENDING existentes en el servidor
+  masterSignalsHistory = masterSignalsHistory.map(item => {
+    if (item.status !== 'PENDING') return item;
+
+    if (item.direction === 'LONG') {
+      if (p >= item.tp1) {
+        const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
+        log('HOJA 2 24/7', `✅ Señal LONG tocó TP a $${p} (+${pnl}%)`, 'success');
+        return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+      }
+      if (p <= item.sl) {
+        const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
+        log('HOJA 2 24/7', `❌ Señal LONG tocó SL a $${p} (${pnl}%)`, 'error');
+        return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+      }
+      if (score <= -2.5) {
+        const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
+        log('HOJA 2 24/7', `⚠️ Señal LONG INVALIDADA a $${p}`, 'warning');
+        return {
+          ...item,
+          status: 'INVALIDATED',
+          exitPrice: p,
+          pnlPercent: pnl,
+          resolvedAt: Date.now(),
+          invalidationReason: `Giro de estrategia a bajista (Score: ${score})`
+        };
+      }
+    } else if (item.direction === 'SHORT') {
+      if (p <= item.tp1) {
+        const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
+        log('HOJA 2 24/7', `✅ Señal SHORT tocó TP a $${p} (+${pnl}%)`, 'success');
+        return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+      }
+      if (p >= item.sl) {
+        const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
+        log('HOJA 2 24/7', `❌ Señal SHORT tocó SL a $${p} (${pnl}%)`, 'error');
+        return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+      }
+      if (score >= 2.5) {
+        const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
+        log('HOJA 2 24/7', `⚠️ Señal SHORT INVALIDADA a $${p}`, 'warning');
+        return {
+          ...item,
+          status: 'INVALIDATED',
+          exitPrice: p,
+          pnlPercent: pnl,
+          resolvedAt: Date.now(),
+          invalidationReason: `Giro de estrategia a alcista (Score: ${score})`
+        };
+      }
+    }
+    return item;
+  });
+
+  // 2. Registrar nueva señal si es accionable y no hay una PENDING idéntica
+  if (isActionable) {
+    const direction = score > 0 ? 'LONG' : 'SHORT';
+    const setup = direction === 'LONG' ? z.longSetup : z.shortSetup;
+    const hasPendingSameDir = masterSignalsHistory.some(item => item.status === 'PENDING' && item.direction === direction);
+
+    if (!hasPendingSameDir && setup && setup.tp1 && setup.sl) {
+      const nowStr = new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' });
+      const newSignalObj = {
+        id: `master_${Date.now()}`,
+        timestamp: nowStr,
+        createdAt: Date.now(),
+        direction,
+        signalLabel: `${sigText} ${sigEmoji}`,
+        score,
+        confidencePercent: freshData.confidencePercent || 80,
+        entryPrice: Math.round(p),
+        tp1: setup.tp1,
+        tp2: setup.tp2,
+        sl: setup.sl,
+        rr: setup.rr,
+        status: 'PENDING',
+        exitPrice: null,
+        pnlPercent: 0,
+        invalidationReason: null
+      };
+      masterSignalsHistory.unshift(newSignalObj);
+      if (masterSignalsHistory.length > 200) masterSignalsHistory.pop();
+      log('HOJA 2 24/7', `Nueva Señal Maestra 24/7 registrada: ${newSignalObj.signalLabel} a $${newSignalObj.entryPrice}`, 'success');
+    }
+  }
 }
 
 // Reevaluar e invalidar señales en estado PENDING
@@ -164,6 +265,17 @@ async function runContinuousAnalysis() {
       addNewSignal(stratName, res);
     });
 
+    // Ejecutar Análisis de Hoja 2 (BTC Master Pro 24/7)
+    try {
+      const masterRes = await btcMasterAnalysisService.runFullMasterAnalysis();
+      if (masterRes.success) {
+        latestMasterAnalysis = masterRes.data;
+        processMasterSignals247(masterRes.data);
+      }
+    } catch (mErr) {
+      log('HOJA 2 24/7', `Error en ciclo de Hoja 2: ${mErr.message}`, 'error');
+    }
+
   } catch (err) {
     log('ERROR 24/7', `Error en ciclo de análisis: ${err.message}`, 'error');
   } finally {
@@ -180,7 +292,9 @@ app.get('/', (req, res) => {
     lastBtcPrice,
     pendingSignalsCount: signalsHistory.filter(s => s.status === 'PENDING').length,
     totalSignalsHistory: signalsHistory.length,
-    masterConsensus: latestAnalysis.masterConsensus || null
+    masterConsensus: latestAnalysis.masterConsensus || null,
+    hoja2Active: !!latestMasterAnalysis,
+    masterHistoryCount: masterSignalsHistory.length
   });
 });
 
@@ -195,6 +309,28 @@ app.get('/api/signals', (req, res) => {
     latestAnalysis,
     masterConsensus: latestAnalysis.masterConsensus || null
   });
+});
+
+app.get('/api/master-analysis', (req, res) => {
+  res.json({
+    status: 'ok',
+    btcPrice: lastBtcPrice,
+    data: latestMasterAnalysis
+  });
+});
+
+app.get('/api/master-signals', (req, res) => {
+  res.json({
+    status: 'ok',
+    btcPrice: lastBtcPrice,
+    history: masterSignalsHistory,
+    data: latestMasterAnalysis
+  });
+});
+
+app.post('/api/master-signals/clear', (req, res) => {
+  masterSignalsHistory = [];
+  res.json({ status: 'ok', message: 'Historial de Hoja 2 limpiado en el servidor 24/7' });
 });
 
 // Iniciar servidor HTTP y bucle 24/7
