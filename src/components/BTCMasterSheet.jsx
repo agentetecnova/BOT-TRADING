@@ -6,7 +6,114 @@ export default function BTCMasterSheet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'report' | 'blocks'
+  const [masterHistory, setMasterHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('btc_master_history_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [historyFilter, setHistoryFilter] = useState('ALL');
+
+  const updateMasterHistory = (freshData) => {
+    if (!freshData || !freshData.currentPrice || !freshData.priceZones) return;
+
+    setMasterHistory(prev => {
+      let updated = [...prev];
+      const p = freshData.currentPrice;
+      const score = freshData.compositeScore;
+      const z = freshData.priceZones;
+      const sigText = freshData.signal;
+      const sigEmoji = freshData.signalEmoji;
+      const isActionable = Math.abs(score) >= 1.0;
+
+      // 1. Evaluar señales PENDING existentes
+      updated = updated.map(item => {
+        if (item.status !== 'PENDING') return item;
+
+        if (item.direction === 'LONG') {
+          if (p >= item.tp1) {
+            const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
+            return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+          }
+          if (p <= item.sl) {
+            const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
+            return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+          }
+          if (score <= -2.5) {
+            const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
+            return {
+              ...item,
+              status: 'INVALIDATED',
+              exitPrice: p,
+              pnlPercent: pnl,
+              resolvedAt: Date.now(),
+              invalidationReason: `Giro de estrategia a bajista (Score: ${score})`
+            };
+          }
+        } else if (item.direction === 'SHORT') {
+          if (p <= item.tp1) {
+            const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
+            return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+          }
+          if (p >= item.sl) {
+            const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
+            return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+          }
+          if (score >= 2.5) {
+            const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
+            return {
+              ...item,
+              status: 'INVALIDATED',
+              exitPrice: p,
+              pnlPercent: pnl,
+              resolvedAt: Date.now(),
+              invalidationReason: `Giro de estrategia a alcista (Score: ${score})`
+            };
+          }
+        }
+        return item;
+      });
+
+      // 2. Registrar nueva señal si es accionable y no hay una PENDING idéntica
+      if (isActionable) {
+        const direction = score > 0 ? 'LONG' : 'SHORT';
+        const setup = direction === 'LONG' ? z.longSetup : z.shortSetup;
+        const hasPendingSameDir = updated.some(item => item.status === 'PENDING' && item.direction === direction);
+
+        if (!hasPendingSameDir && setup && setup.tp1 && setup.sl) {
+          const nowStr = new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' });
+          const newSignalObj = {
+            id: `master_${Date.now()}`,
+            timestamp: nowStr,
+            createdAt: Date.now(),
+            direction,
+            signalLabel: `${sigText} ${sigEmoji}`,
+            score,
+            confidencePercent: freshData.confidencePercent || 80,
+            entryPrice: Math.round(p),
+            tp1: setup.tp1,
+            tp2: setup.tp2,
+            sl: setup.sl,
+            rr: setup.rr,
+            status: 'PENDING',
+            exitPrice: null,
+            pnlPercent: 0,
+            invalidationReason: null
+          };
+          updated.unshift(newSignalObj);
+        }
+      }
+
+      // Guardar en localStorage
+      try {
+        localStorage.setItem('btc_master_history_v1', JSON.stringify(updated.slice(0, 100)));
+      } catch (e) {}
+
+      return updated;
+    });
+  };
 
   const runAnalysis = async () => {
     setLoading(true);
@@ -15,6 +122,7 @@ export default function BTCMasterSheet() {
       const res = await btcMasterAnalysisService.runFullMasterAnalysis();
       if (res.success) {
         setData(res.data);
+        updateMasterHistory(res.data);
       } else {
         setError(res.error || 'Error al calcular el análisis de Hoja 2');
       }
@@ -64,6 +172,25 @@ export default function BTCMasterSheet() {
   const s = z.shortSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
   const a4 = data.analysis4h || { trend: { score: 0, details: [] }, momentum: { score: 0, details: [] }, volatility: { score: 0, details: [] }, volume: { score: 0, details: [], cmf: 0, vwap: p }, advanced: { score: 0, details: [], wyckoff: { phase: 'N/A' }, smc: { orderBlocks: [] }, fibs: {}, onchain: { fundingRate: 0 } }, candles: {} };
   const a1d = data.analysis1d || { trend: { score: 0, details: [] }, momentum: { score: 0, details: [] }, volatility: { score: 0, details: [], atr: 0 }, volume: { score: 0, details: [] }, advanced: { score: 0, details: [], fibs: { '0.618': p } }, candles: {} };
+
+  // Métricas de Rendimiento de Historial para Hoja 2
+  const totalSignals = masterHistory.length;
+  const tpSignals = masterHistory.filter(item => item.status === 'TP').length;
+  const slSignals = masterHistory.filter(item => item.status === 'SL').length;
+  const invSignals = masterHistory.filter(item => item.status === 'INVALIDATED').length;
+  const pendingSignals = masterHistory.filter(item => item.status === 'PENDING').length;
+  const completedSignals = tpSignals + slSignals;
+
+  const winRate = completedSignals > 0 
+    ? ((tpSignals / completedSignals) * 100).toFixed(1) 
+    : (totalSignals > 0 ? '100.0' : '0.0');
+
+  const totalPnl = masterHistory.reduce((acc, curr) => acc + (curr.pnlPercent || 0), 0).toFixed(2);
+
+  const filteredHistory = masterHistory.filter(item => {
+    if (historyFilter === 'ALL') return true;
+    return item.status === historyFilter;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
@@ -194,10 +321,11 @@ export default function BTCMasterSheet() {
       {/* NAVEGACION DE PESTAÑAS DENTRO DE HOJA 2 */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {[
-          { id: 'overview', label: '🎯 Setups & Zonas de Precio' },
+          { id: 'overview', label: '🎯 Setups & Zonas' },
+          { id: 'history', label: `📜 Historial & Aciertos (${masterHistory.length})` },
           { id: 'heatmap', label: '🔥 Mapa de Liquidaciones & Miedo' },
           { id: 'report', label: '📊 Reporte Diario UTC 00:05' },
-          { id: 'blocks', label: '🔍 Desglose 6 Bloques Indicadores' }
+          { id: 'blocks', label: '🔍 Desglose 6 Bloques' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -220,6 +348,198 @@ export default function BTCMasterSheet() {
       </div>
 
       {/* CONTENIDO SEGÚN LA PESTAÑA SELECCIONADA */}
+
+      {activeTab === 'history' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* TARJETAS RESUMEN DE RENDIMIENTO DE HOJA 2 */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: '1rem'
+          }}>
+            <div className="glass-panel" style={{ padding: '1.2rem', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.3)', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%)' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Tasa de Acierto (Win Rate)</div>
+              <div style={{ fontSize: '2rem', fontWeight: 900, color: '#10b981', margin: '0.2rem 0' }}>{winRate}%</div>
+              <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>{tpSignals} Aciertos / {slSignals} Pérdidas</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.2rem', borderRadius: '16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>PnL Acumulado</div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: parseFloat(totalPnl) >= 0 ? '#10b981' : '#ef4444', margin: '0.2rem 0' }}>
+                {parseFloat(totalPnl) >= 0 ? `+${totalPnl}%` : `${totalPnl}%`}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Rendimiento Total</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.2rem', borderRadius: '16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>En Curso</div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f59e0b', margin: '0.2rem 0' }}>{pendingSignals}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Pendientes de TP/SL</div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.2rem', borderRadius: '16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Invalidadas</div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f97316', margin: '0.2rem 0' }}>{invSignals}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Salidas Precoces</div>
+            </div>
+          </div>
+
+          {/* PANEL DE TABLA Y FILTROS */}
+          <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', color: '#fff', margin: 0, fontWeight: 700 }}>
+                  📜 Registro de Señales & Desempeño en el Tiempo (Hoja 2)
+                </h3>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                  Historial automático de señales con evaluación continua de TP, SL y Salidas Precoces (Invalidaciones).
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    if (window.confirm('¿Seguro que deseas borrar el historial de señales de Hoja 2?')) {
+                      setMasterHistory([]);
+                      localStorage.removeItem('btc_master_history_v1');
+                    }
+                  }}
+                  style={{
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: '8px',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#ef4444',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  🧹 Limpiar Historial
+                </button>
+              </div>
+            </div>
+
+            {/* BOTONES DE FILTRO */}
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              {[
+                { key: 'ALL', label: `Todas (${masterHistory.length})` },
+                { key: 'PENDING', label: `En Curso (${pendingSignals})` },
+                { key: 'TP', label: `Aciertos ✅ (${tpSignals})` },
+                { key: 'SL', label: `Pérdidas ❌ (${slSignals})` },
+                { key: 'INVALIDATED', label: `Invalidadas ⚠️ (${invSignals})` }
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setHistoryFilter(f.key)}
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    background: historyFilter === f.key ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${historyFilter === f.key ? '#a855f7' : 'rgba(255,255,255,0.05)'}`,
+                    color: historyFilter === f.key ? '#fff' : 'var(--color-text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* LISTADO DE SEÑALES */}
+            {filteredHistory.length === 0 ? (
+              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                No hay señales registradas en este filtro aún. Las nuevas señales de Hoja 2 se registrarán automáticamente al monitorear el mercado.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--color-text-muted)' }}>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>Fecha/Hora</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>Señal & Score</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>Entrada</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>Target (TP)</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>Stop Loss (SL)</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>Precio Salida</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>PnL %</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHistory.map((item) => {
+                      const isLong = item.direction === 'LONG';
+                      return (
+                        <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '0.75rem 0.5rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                            {item.timestamp}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700 }}>
+                            <span style={{ color: isLong ? 'var(--color-up)' : 'var(--color-down)' }}>
+                              {item.signalLabel}
+                            </span>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+                              Score: {item.score > 0 ? `+${item.score}` : item.score} | RR: {item.rr}:1
+                            </div>
+                          </td>
+                          <td className="font-mono" style={{ padding: '0.75rem 0.5rem', fontWeight: 700 }}>
+                            ${item.entryPrice.toLocaleString()}
+                          </td>
+                          <td className="font-mono" style={{ padding: '0.75rem 0.5rem', color: 'var(--color-up)' }}>
+                            ${item.tp1.toLocaleString()}
+                          </td>
+                          <td className="font-mono" style={{ padding: '0.75rem 0.5rem', color: 'var(--color-down)' }}>
+                            ${item.sl.toLocaleString()}
+                          </td>
+                          <td className="font-mono" style={{ padding: '0.75rem 0.5rem' }}>
+                            {item.exitPrice ? `$${Math.round(item.exitPrice).toLocaleString()}` : '--'}
+                          </td>
+                          <td className="font-mono" style={{ padding: '0.75rem 0.5rem', fontWeight: 800, color: item.pnlPercent > 0 ? '#10b981' : item.pnlPercent < 0 ? '#ef4444' : '#cbd5e1' }}>
+                            {item.status === 'PENDING' ? '0.00%' : `${item.pnlPercent > 0 ? '+' : ''}${item.pnlPercent}%`}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>
+                            {item.status === 'PENDING' && (
+                              <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                🟡 En Curso
+                              </span>
+                            )}
+                            {item.status === 'TP' && (
+                              <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                ✅ Acierto (TP)
+                              </span>
+                            )}
+                            {item.status === 'SL' && (
+                              <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                ❌ Pérdida (SL)
+                              </span>
+                            )}
+                            {item.status === 'INVALIDATED' && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                                <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(249, 115, 22, 0.15)', border: '1px solid rgba(249, 115, 22, 0.3)', color: '#f97316', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-block' }}>
+                                  ⚠️ INVALIDADA (Salida Precoz)
+                                </span>
+                                {item.invalidationReason && (
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', maxWidth: '200px' }}>
+                                    {item.invalidationReason}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
 
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
