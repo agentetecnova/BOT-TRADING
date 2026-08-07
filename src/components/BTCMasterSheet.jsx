@@ -41,10 +41,11 @@ export default function BTCMasterSheet() {
           try {
             localStorage.setItem('btc_master_history_backup', JSON.stringify(json.history));
           } catch (e) {}
-          if (json.data) {
+          
+          if (json.data && json.data.currentPrice && json.data.priceZones) {
             setData(json.data);
+            return true; // Solo si se obtuvieron datos de análisis válidos
           }
-          return true;
         }
       }
     } catch (err) {
