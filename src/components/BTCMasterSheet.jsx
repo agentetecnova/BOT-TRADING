@@ -6,18 +6,41 @@ export default function BTCMasterSheet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [masterHistory, setMasterHistory] = useState([]);
+  const [masterHistory, setMasterHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('btc_master_history_backup');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [historyFilter, setHistoryFilter] = useState('ALL');
 
   const RENDER_API = 'https://bot-trading-2.onrender.com';
 
   const fetchServerMasterHistory = async () => {
     try {
-      const response = await fetch(`${RENDER_API}/api/master-signals`);
+      // 1. Obtener respaldo local cache existente
+      let localCache = [];
+      try {
+        const saved = localStorage.getItem('btc_master_history_backup');
+        if (saved) localCache = JSON.parse(saved);
+      } catch (e) {}
+
+      // 2. Sincronizar bidireccionalmente con el servidor 24/7 de Render
+      const response = await fetch(`${RENDER_API}/api/master-signals/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientHistory: localCache })
+      });
+
       if (response.ok) {
         const json = await response.json();
-        if (json && json.history) {
+        if (json && json.history && Array.isArray(json.history)) {
           setMasterHistory(json.history);
+          try {
+            localStorage.setItem('btc_master_history_backup', JSON.stringify(json.history));
+          } catch (e) {}
           if (json.data) {
             setData(json.data);
           }
@@ -25,7 +48,7 @@ export default function BTCMasterSheet() {
         }
       }
     } catch (err) {
-      console.warn('[Sync Cloud] Error conectando con el servidor en la nube de Hoja 2:', err);
+      console.warn('[Sync Cloud] Error conectando con la nube de Hoja 2:', err);
     }
     return false;
   };
@@ -51,9 +74,10 @@ export default function BTCMasterSheet() {
   };
 
   const clearMasterHistory = async () => {
-    if (window.confirm('¿Seguro que deseas borrar el historial de señales de Hoja 2 en la nube para todos los dispositivos?')) {
+    if (window.confirm('¿Seguro que deseas borrar el historial de señales de Hoja 2 en la nube y en todos los dispositivos?')) {
       setMasterHistory([]);
       try {
+        localStorage.removeItem('btc_master_history_backup');
         await fetch(`${RENDER_API}/api/master-signals/clear`, { method: 'POST' });
       } catch (e) {}
     }

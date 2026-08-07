@@ -1,7 +1,16 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import technicalAnalysisService from './src/services/TechnicalAnalysisService.js';
 import btcMasterAnalysisService from './src/services/BTCMasterAnalysisService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const SIGNALS_FILE = path.join(__dirname, 'signals_history_db.json');
+const MASTER_SIGNALS_FILE = path.join(__dirname, 'master_signals_history_db.json');
 
 const app = express();
 app.use(cors());
@@ -22,6 +31,46 @@ function log(source, message, type = 'info') {
   const time = new Date().toISOString();
   console.log(`[${time}] [${source}] [${type.toUpperCase()}] ${message}`);
 }
+
+// Persistencia en Disco del Servidor
+function loadDiskDatabase() {
+  try {
+    if (fs.existsSync(SIGNALS_FILE)) {
+      const data = fs.readFileSync(SIGNALS_FILE, 'utf8');
+      signalsHistory = JSON.parse(data);
+      console.log(`[PERSISTENCIA 24/7] Cargadas ${signalsHistory.length} señales de Hoja 1 desde disco.`);
+    }
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error cargando signals_history_db.json:', e.message);
+  }
+
+  try {
+    if (fs.existsSync(MASTER_SIGNALS_FILE)) {
+      const data = fs.readFileSync(MASTER_SIGNALS_FILE, 'utf8');
+      masterSignalsHistory = JSON.parse(data);
+      console.log(`[PERSISTENCIA 24/7] Cargadas ${masterSignalsHistory.length} señales de Hoja 2 desde disco.`);
+    }
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error cargando master_signals_history_db.json:', e.message);
+  }
+}
+
+function saveDiskDatabase() {
+  try {
+    fs.writeFileSync(SIGNALS_FILE, JSON.stringify(signalsHistory.slice(0, 300), null, 2), 'utf8');
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error guardando signals_history_db.json:', e.message);
+  }
+
+  try {
+    fs.writeFileSync(MASTER_SIGNALS_FILE, JSON.stringify(masterSignalsHistory.slice(0, 300), null, 2), 'utf8');
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error guardando master_signals_history_db.json:', e.message);
+  }
+}
+
+// Cargar base de datos al iniciar
+loadDiskDatabase();
 
 // Procesar señales de Hoja 2 en el servidor 24/7 (Sincronizado para todos los dispositivos)
 function processMasterSignals247(freshData) {
@@ -117,6 +166,7 @@ function processMasterSignals247(freshData) {
       masterSignalsHistory.unshift(newSignalObj);
       if (masterSignalsHistory.length > 200) masterSignalsHistory.pop();
       log('HOJA 2 24/7', `Nueva Señal Maestra 24/7 registrada: ${newSignalObj.signalLabel} a $${newSignalObj.entryPrice}`, 'success');
+      saveDiskDatabase();
     }
   }
 }
@@ -145,6 +195,8 @@ function processSignalInvalidations(resultsMap) {
     }
     return sig;
   });
+
+  if (updated) saveDiskDatabase();
 }
 
 // Agregar nuevas señales evitando duplicados PENDING de la misma estrategia
@@ -172,6 +224,7 @@ function addNewSignal(strategyName, strategyResult) {
 
   signalsHistory.unshift(newSignal);
   if (signalsHistory.length > 200) signalsHistory.pop(); // Mantener últimas 200
+  saveDiskDatabase();
 
   log('ALGORITMO 24/7', `Nueva señal ${sig.type} generada por ${strategyName} a $${sig.entry}`, 'success');
 }
@@ -328,14 +381,95 @@ app.get('/api/master-signals', (req, res) => {
   });
 });
 
+app.post('/api/master-signals/sync', (req, res) => {
+  try {
+    const { clientHistory } = req.body;
+    if (Array.isArray(clientHistory) && clientHistory.length > 0) {
+      const serverIds = new Set(masterSignalsHistory.map(s => s.id));
+      let added = false;
+      clientHistory.forEach(item => {
+        if (item && item.id && !serverIds.has(item.id)) {
+          masterSignalsHistory.push(item);
+          added = true;
+        }
+      });
+      if (added) {
+        masterSignalsHistory.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        saveDiskDatabase();
+        log('HOJA 2 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 2 desde respaldo de cliente.`, 'info');
+      }
+    }
+  } catch (e) {
+    console.error('[Sync Master Error]:', e.message);
+  }
+  res.json({
+    status: 'ok',
+    history: masterSignalsHistory
+  });
+});
+
+app.post('/api/signals/sync', (req, res) => {
+  try {
+    const { clientHistory } = req.body;
+    if (Array.isArray(clientHistory) && clientHistory.length > 0) {
+      const serverIds = new Set(signalsHistory.map(s => s.id));
+      let added = false;
+      clientHistory.forEach(item => {
+        if (item && item.id && !serverIds.has(item.id)) {
+          signalsHistory.push(item);
+          added = true;
+        }
+      });
+      if (added) {
+        signalsHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        saveDiskDatabase();
+        log('ALGORITMO 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 1 desde respaldo de cliente.`, 'info');
+      }
+    }
+  } catch (e) {
+    console.error('[Sync Signals Error]:', e.message);
+  }
+  res.json({
+    status: 'ok',
+    history: signalsHistory
+  });
+});
+
 app.post('/api/master-signals/clear', (req, res) => {
   masterSignalsHistory = [];
+  saveDiskDatabase();
   res.json({ status: 'ok', message: 'Historial de Hoja 2 limpiado en el servidor 24/7' });
 });
+
+// Auto-KeepAlive Pinger Automático (Mantiene el servidor 100% activo 24/7 sin suspensiones)
+function startAutoKeepAlive() {
+  const SERVER_URL = process.env.RENDER_EXTERNAL_URL || 'https://bot-trading-2.onrender.com';
+  
+  const sendKeepAlivePing = async () => {
+    try {
+      // 1. Direct Public HTTP Ping (Genera tráfico entrante público en Render)
+      const res = await fetch(`${SERVER_URL}/api/health`, { cache: 'no-cache' });
+      if (res.ok) {
+        log('AUTO-KEEPALIVE 24/7', '🟢 Ping de mantenimiento automático enviado. Servidor 100% ACTIVO', 'info');
+      }
+    } catch (err) {
+      log('AUTO-KEEPALIVE 24/7', `Reintentando ping secundario por proxy...`, 'warning');
+      try {
+        // 2. Secondary Proxy Ping via public edge router
+        await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(SERVER_URL + '/api/health')}`);
+      } catch (e2) {}
+    }
+  };
+
+  // Enviar un ping a los 10s del inicio y luego cada 4 minutos (240.000 ms)
+  setTimeout(sendKeepAlivePing, 10000);
+  setInterval(sendKeepAlivePing, 4 * 60 * 1000);
+}
 
 // Iniciar servidor HTTP y bucle 24/7
 app.listen(PORT, () => {
   log('INICIO', `🟢 Servidor Bot Trading 24/7 activo en el puerto ${PORT}`);
   runContinuousAnalysis();
   setInterval(runContinuousAnalysis, 30000);
+  startAutoKeepAlive();
 });

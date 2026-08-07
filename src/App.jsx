@@ -56,21 +56,41 @@ export default function App() {
   // Auto-scroll logs
   const consoleRef = useRef(null);
 
-  // Mount effect
+  // Load signals from local backup cache on mount
   useEffect(() => {
-    addLog('Sistema', 'Terminal de Análisis Técnico de BTC Inicializada (Conexión 100% Nube 24/7)');
+    try {
+      const saved = localStorage.getItem('btc_signals_history_backup');
+      if (saved) {
+        setSignalsHistory(JSON.parse(saved));
+      }
+    } catch (e) {}
+    addLog('Sistema', 'Terminal de Análisis Técnico de BTC Inicializada (Persistencia Nube Resiliente 24/7)');
   }, []);
 
-  // Poll Render 24/7 API for background signals and server state
+  // Poll & Sync Render 24/7 API for background signals and server state
   useEffect(() => {
     const fetchRenderSignals = async () => {
       try {
-        const renderUrl = 'https://bot-trading-2.onrender.com/api/signals';
-        const res = await fetch(renderUrl, { cache: 'no-cache' });
+        let localCache = [];
+        try {
+          const saved = localStorage.getItem('btc_signals_history_backup');
+          if (saved) localCache = JSON.parse(saved);
+        } catch (e) {}
+
+        const renderUrl = 'https://bot-trading-2.onrender.com/api/signals/sync';
+        const res = await fetch(renderUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientHistory: localCache })
+        });
+
         if (res.ok) {
           const data = await res.json();
           if (data && data.history && Array.isArray(data.history)) {
             setSignalsHistory(data.history);
+            try {
+              localStorage.setItem('btc_signals_history_backup', JSON.stringify(data.history));
+            } catch (e) {}
           }
           if (data && data.masterConsensus) {
             setMasterConsensusData(data.masterConsensus);
