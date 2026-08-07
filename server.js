@@ -5,12 +5,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import technicalAnalysisService from './src/services/TechnicalAnalysisService.js';
 import btcMasterAnalysisService from './src/services/BTCMasterAnalysisService.js';
+import divergenceQuantService from './src/services/DivergenceQuantService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const SIGNALS_FILE = path.join(__dirname, 'signals_history_db.json');
 const MASTER_SIGNALS_FILE = path.join(__dirname, 'master_signals_history_db.json');
+const HOJA3_SIGNALS_FILE = path.join(__dirname, 'hoja3_signals_history_db.json');
 
 const app = express();
 app.use(cors());
@@ -21,8 +23,10 @@ const PORT = process.env.PORT || 3000;
 // Estado del Servidor 24/7
 let signalsHistory = [];
 let masterSignalsHistory = [];
+let hoja3SignalsHistory = [];
 let latestAnalysis = {};
 let latestMasterAnalysis = null;
+let latestHoja3Analysis = null;
 let isRunningAnalysis = false;
 let lastBtcPrice = null;
 
@@ -43,6 +47,47 @@ function loadDiskDatabase() {
   } catch (e) {
     console.error('[PERSISTENCIA 24/7] Error cargando signals_history_db.json:', e.message);
   }
+
+  try {
+    if (fs.existsSync(MASTER_SIGNALS_FILE)) {
+      const data = fs.readFileSync(MASTER_SIGNALS_FILE, 'utf8');
+      masterSignalsHistory = JSON.parse(data);
+      console.log(`[PERSISTENCIA 24/7] Cargadas ${masterSignalsHistory.length} señales de Hoja 2 desde disco.`);
+    }
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error cargando master_signals_history_db.json:', e.message);
+  }
+
+  try {
+    if (fs.existsSync(HOJA3_SIGNALS_FILE)) {
+      const data = fs.readFileSync(HOJA3_SIGNALS_FILE, 'utf8');
+      hoja3SignalsHistory = JSON.parse(data);
+      console.log(`[PERSISTENCIA 24/7] Cargadas ${hoja3SignalsHistory.length} señales de Hoja 3 desde disco.`);
+    }
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error cargando hoja3_signals_history_db.json:', e.message);
+  }
+}
+
+function saveDiskDatabase() {
+  try {
+    fs.writeFileSync(SIGNALS_FILE, JSON.stringify(signalsHistory.slice(0, 300), null, 2), 'utf8');
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error guardando signals_history_db.json:', e.message);
+  }
+
+  try {
+    fs.writeFileSync(MASTER_SIGNALS_FILE, JSON.stringify(masterSignalsHistory.slice(0, 300), null, 2), 'utf8');
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error guardando master_signals_history_db.json:', e.message);
+  }
+
+  try {
+    fs.writeFileSync(HOJA3_SIGNALS_FILE, JSON.stringify(hoja3SignalsHistory.slice(0, 300), null, 2), 'utf8');
+  } catch (e) {
+    console.error('[PERSISTENCIA 24/7] Error guardando hoja3_signals_history_db.json:', e.message);
+  }
+}
 
   try {
     if (fs.existsSync(MASTER_SIGNALS_FILE)) {
@@ -169,6 +214,57 @@ function processMasterSignals247(freshData) {
       saveDiskDatabase();
     }
   }
+}
+
+// Procesar señales de Hoja 3 (Divergencias + Quant Squeeze 24/7)
+function processHoja3Signals247(freshData) {
+  if (!freshData || !freshData.currentPrice || !freshData.activeSignals) return;
+  const p = freshData.currentPrice;
+
+  hoja3SignalsHistory = hoja3SignalsHistory.map(item => {
+    if (item.status !== 'PENDING') return item;
+    if (item.direction === 'LONG') {
+      if (p >= item.tp1) {
+        const pnl = parseFloat((((p - item.entry) / item.entry) * 100).toFixed(2));
+        log('HOJA 3 24/7', `✅ Señal HOJA 3 LONG tocó TP a $${p} (+${pnl}%)`, 'success');
+        return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+      }
+      if (p <= item.sl) {
+        const pnl = parseFloat((((p - item.entry) / item.entry) * 100).toFixed(2));
+        log('HOJA 3 24/7', `❌ Señal HOJA 3 LONG tocó SL a $${p} (${pnl}%)`, 'error');
+        return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+      }
+    } else if (item.direction === 'SHORT') {
+      if (p <= item.tp1) {
+        const pnl = parseFloat((((item.entry - p) / item.entry) * 100).toFixed(2));
+        log('HOJA 3 24/7', `✅ Señal HOJA 3 SHORT tocó TP a $${p} (+${pnl}%)`, 'success');
+        return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+      }
+      if (p >= item.sl) {
+        const pnl = parseFloat((((item.entry - p) / item.entry) * 100).toFixed(2));
+        log('HOJA 3 24/7', `❌ Señal HOJA 3 SHORT tocó SL a $${p} (${pnl}%)`, 'error');
+        return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+      }
+    }
+    return item;
+  });
+
+  freshData.activeSignals.forEach(newSig => {
+    const hasPending = hoja3SignalsHistory.some(item => item.strategy === newSig.strategy && item.status === 'PENDING');
+    if (!hasPending) {
+      const nowStr = new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' });
+      hoja3SignalsHistory.unshift({
+        ...newSig,
+        timestamp: nowStr,
+        createdAt: Date.now(),
+        pnlPercent: 0
+      });
+      if (hoja3SignalsHistory.length > 200) hoja3SignalsHistory.pop();
+      log('HOJA 3 24/7', `Nueva Señal Hoja 3 registrada: ${newSig.label} a $${newSig.entry}`, 'success');
+    }
+  });
+
+  saveDiskDatabase();
 }
 
 // Reevaluar e invalidar señales en estado PENDING
@@ -329,6 +425,17 @@ async function runContinuousAnalysis() {
       log('HOJA 2 24/7', `Error en ciclo de Hoja 2: ${mErr.message}`, 'error');
     }
 
+    // Ejecutar Análisis de Hoja 3 (Divergencias + Quant Squeeze 24/7)
+    try {
+      const h3Res = await divergenceQuantService.runFullDivergenceQuantAnalysis();
+      if (h3Res.success) {
+        latestHoja3Analysis = h3Res.data;
+        processHoja3Signals247(h3Res.data);
+      }
+    } catch (h3Err) {
+      log('HOJA 3 24/7', `Error en ciclo de Hoja 3: ${h3Err.message}`, 'error');
+    }
+
   } catch (err) {
     log('ERROR 24/7', `Error en ciclo de análisis: ${err.message}`, 'error');
   } finally {
@@ -347,7 +454,9 @@ app.get('/', (req, res) => {
     totalSignalsHistory: signalsHistory.length,
     masterConsensus: latestAnalysis.masterConsensus || null,
     hoja2Active: !!latestMasterAnalysis,
-    masterHistoryCount: masterSignalsHistory.length
+    hoja3Active: !!latestHoja3Analysis,
+    masterHistoryCount: masterSignalsHistory.length,
+    hoja3HistoryCount: hoja3SignalsHistory.length
   });
 });
 
@@ -379,6 +488,56 @@ app.get('/api/master-signals', (req, res) => {
     history: masterSignalsHistory,
     data: latestMasterAnalysis
   });
+});
+
+app.get('/api/hoja3-analysis', (req, res) => {
+  res.json({
+    status: 'ok',
+    btcPrice: lastBtcPrice,
+    data: latestHoja3Analysis
+  });
+});
+
+app.get('/api/hoja3-signals', (req, res) => {
+  res.json({
+    status: 'ok',
+    btcPrice: lastBtcPrice,
+    history: hoja3SignalsHistory,
+    data: latestHoja3Analysis
+  });
+});
+
+app.post('/api/hoja3-signals/sync', (req, res) => {
+  try {
+    const { clientHistory } = req.body;
+    if (Array.isArray(clientHistory) && clientHistory.length > 0) {
+      const serverIds = new Set(hoja3SignalsHistory.map(s => s.id));
+      let added = false;
+      clientHistory.forEach(item => {
+        if (item && item.id && !serverIds.has(item.id)) {
+          hoja3SignalsHistory.push(item);
+          added = true;
+        }
+      });
+      if (added) {
+        hoja3SignalsHistory.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        saveDiskDatabase();
+        log('HOJA 3 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 3 desde respaldo de cliente.`, 'info');
+      }
+    }
+  } catch (e) {
+    console.error('[Sync Hoja 3 Error]:', e.message);
+  }
+  res.json({
+    status: 'ok',
+    history: hoja3SignalsHistory
+  });
+});
+
+app.post('/api/hoja3-signals/clear', (req, res) => {
+  hoja3SignalsHistory = [];
+  saveDiskDatabase();
+  res.json({ status: 'ok', message: 'Historial de Hoja 3 limpiado en el servidor 24/7' });
 });
 
 app.post('/api/master-signals/sync', (req, res) => {

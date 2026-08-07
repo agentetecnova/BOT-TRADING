@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import technicalAnalysisService from './services/TechnicalAnalysisService';
 import BTCMasterSheet from './components/BTCMasterSheet';
+import BTCDivergenceQuantSheet from './components/BTCDivergenceQuantSheet';
 import './App.css';
 
 class SheetErrorBoundary extends React.Component {
@@ -683,7 +684,7 @@ export default function App() {
             onClick={() => setSelectedSheet('sheet2')}
             style={{
               flex: 1,
-              minWidth: '200px',
+              minWidth: '180px',
               padding: '0.75rem 1.25rem',
               borderRadius: '12px',
               fontWeight: 800,
@@ -699,7 +700,29 @@ export default function App() {
               gap: '0.5rem'
             }}
           >
-            👑 HOJA 2: BTC Master Pro (Prompter Maestro)
+            👑 HOJA 2: BTC Master Pro
+          </button>
+          <button
+            onClick={() => setSelectedSheet('sheet3')}
+            style={{
+              flex: 1,
+              minWidth: '180px',
+              padding: '0.75rem 1.25rem',
+              borderRadius: '12px',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              background: selectedSheet === 'sheet3' ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${selectedSheet === 'sheet3' ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+              color: selectedSheet === 'sheet3' ? '#fff' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.25s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            ⚡ HOJA 3: Divergencias + Quant Squeeze
           </button>
         </div>
       </div>
@@ -707,6 +730,10 @@ export default function App() {
       {selectedSheet === 'sheet2' ? (
         <SheetErrorBoundary>
           <BTCMasterSheet />
+        </SheetErrorBoundary>
+      ) : selectedSheet === 'sheet3' ? (
+        <SheetErrorBoundary>
+          <BTCDivergenceQuantSheet />
         </SheetErrorBoundary>
       ) : (
         <>
