@@ -13,6 +13,7 @@ export default function BTCMasterSheet() {
       return [];
     }
   });
+  const [activeTab, setActiveTab] = useState('overview');
   const [historyFilter, setHistoryFilter] = useState('ALL');
 
   const RENDER_API = 'https://bot-trading-2.onrender.com';
