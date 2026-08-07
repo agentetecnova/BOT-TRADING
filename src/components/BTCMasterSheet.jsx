@@ -130,12 +130,25 @@ export default function BTCMasterSheet() {
     );
   }
 
-  const p = data.currentPrice || 0;
-  const z = data.priceZones || { r1: 0, r2: 0, s1: 0, s2: 0, longSetup: {}, shortSetup: {} };
-  const l = z.longSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
-  const s = z.shortSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
-  const a4 = data.analysis4h || { trend: { score: 0, details: [] }, momentum: { score: 0, details: [] }, volatility: { score: 0, details: [] }, volume: { score: 0, details: [], cmf: 0, vwap: p }, advanced: { score: 0, details: [], wyckoff: { phase: 'N/A' }, smc: { orderBlocks: [] }, fibs: {}, onchain: { fundingRate: 0 } }, candles: {} };
-  const a1d = data.analysis1d || { trend: { score: 0, details: [] }, momentum: { score: 0, details: [] }, volatility: { score: 0, details: [], atr: 0 }, volume: { score: 0, details: [] }, advanced: { score: 0, details: [], fibs: { '0.618': p } }, candles: {} };
+  if (!data) {
+    return (
+      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>👑</div>
+        <h3>Inicializando Hoja 2 BTC Master Pro...</h3>
+        <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>{error || 'Obteniendo datos en tiempo real de Binance...'}</p>
+        <button onClick={runAnalysis} style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#a855f7', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>🔄 Reintentar Análisis</button>
+      </div>
+    );
+  }
+
+  const p = data?.currentPrice || 0;
+  const z = data?.priceZones || { r1: 0, r2: 0, s1: 0, s2: 0, longSetup: {}, shortSetup: {} };
+  const l = z?.longSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
+  const s = z?.shortSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
+  const a4 = data?.analysis4h || { trend: { score: 0, details: [] }, momentum: { score: 0, details: [] }, volatility: { score: 0, details: [] }, volume: { score: 0, details: [], cmf: 0, vwap: p }, advanced: { score: 0, details: [], wyckoff: { phase: 'N/A' }, smc: { orderBlocks: [] }, fibs: {}, onchain: { fundingRate: 0 } }, candles: {} };
+  const a1d = data?.analysis1d || { trend: { score: 0, details: [] }, momentum: { score: 0, details: [] }, volatility: { score: 0, details: [], atr: 0 }, volume: { score: 0, details: [] }, advanced: { score: 0, details: [], fibs: { '0.618': p } }, candles: {} };
+  const probabilities = data?.probabilities || { pUp: 33, pFlat: 34, pDown: 33 };
+  const fearAndGreed = data?.fearAndGreed || { value: 50, color: '#f59e0b', labelEs: 'Neutral 😐' };
 
   // Métricas de Rendimiento de Historial para Hoja 2
   const totalSignals = masterHistory.length;
@@ -253,15 +266,15 @@ export default function BTCMasterSheet() {
             <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Probabilidades 24H</span>
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'baseline', marginTop: '0.5rem' }}>
               <div>
-                <div style={{ color: 'var(--color-up)', fontWeight: 800, fontSize: '1.1rem' }}>{data.probabilities.pUp}%</div>
+                <div style={{ color: 'var(--color-up)', fontWeight: 800, fontSize: '1.1rem' }}>{probabilities.pUp}%</div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Subida &gt;2%</div>
               </div>
               <div>
-                <div style={{ color: '#cbd5e1', fontWeight: 800, fontSize: '1.1rem' }}>{data.probabilities.pFlat}%</div>
+                <div style={{ color: '#cbd5e1', fontWeight: 800, fontSize: '1.1rem' }}>{probabilities.pFlat}%</div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Lateral</div>
               </div>
               <div>
-                <div style={{ color: 'var(--color-down)', fontWeight: 800, fontSize: '1.1rem' }}>{data.probabilities.pDown}%</div>
+                <div style={{ color: 'var(--color-down)', fontWeight: 800, fontSize: '1.1rem' }}>{probabilities.pDown}%</div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>Bajada &gt;2%</div>
               </div>
             </div>
@@ -270,11 +283,11 @@ export default function BTCMasterSheet() {
           {/* Índice Miedo y Codicia (Fear & Greed Index) */}
           <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '14px', textAlign: 'center' }}>
             <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Índice Miedo y Codicia</span>
-            <div style={{ fontSize: '1.6rem', fontWeight: 900, margin: '0.2rem 0', color: data.fearAndGreed ? data.fearAndGreed.color : '#f59e0b' }}>
-              {data.fearAndGreed ? `${data.fearAndGreed.value} / 100` : '--'}
+            <div style={{ fontSize: '1.6rem', fontWeight: 900, margin: '0.2rem 0', color: fearAndGreed.color }}>
+              {fearAndGreed.value} / 100
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: data.fearAndGreed ? data.fearAndGreed.color : '#f59e0b' }}>
-              {data.fearAndGreed ? data.fearAndGreed.labelEs : 'Cargando...'}
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: fearAndGreed.color }}>
+              {fearAndGreed.labelEs}
             </div>
           </div>
 
