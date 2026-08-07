@@ -705,7 +705,9 @@ export default function App() {
       </div>
 
       {selectedSheet === 'sheet2' ? (
-        <BTCMasterSheet />
+        <SheetErrorBoundary>
+          <BTCMasterSheet />
+        </SheetErrorBoundary>
       ) : (
         <>
           {/* HEADER PANEL */}
