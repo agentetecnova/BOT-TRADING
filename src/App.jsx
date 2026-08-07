@@ -3,6 +3,41 @@ import technicalAnalysisService from './services/TechnicalAnalysisService';
 import BTCMasterSheet from './components/BTCMasterSheet';
 import './App.css';
 
+class SheetErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[SheetErrorBoundary] Error detectado:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px', color: '#ef4444', textAlign: 'center', margin: '1rem 0' }}>
+          <h3>⚠️ Advertencia en el Componente de Hoja 2</h3>
+          <p style={{ fontSize: '0.85rem', color: '#fca5a5', marginTop: '0.5rem' }}>
+            {this.state.error ? this.state.error.message : 'Error inesperado'}
+          </p>
+          <button 
+            onClick={() => this.setState({ hasError: false })}
+            style={{ marginTop: '1.25rem', padding: '0.6rem 1.2rem', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+          >
+            🔄 Reintentar Carga
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   // Navigation State for Independent Sheets
   const [selectedSheet, setSelectedSheet] = useState('sheet1'); // 'sheet1' | 'sheet2'
