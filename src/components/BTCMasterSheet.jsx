@@ -57,18 +57,23 @@ export default function BTCMasterSheet() {
   const runAnalysis = async () => {
     setLoading(true);
     setError(null);
+
+    // 1. Ejecutar cálculo local en vivo inmediatamente (Pantalla carga en 1s sin bloqueos)
     try {
-      const synced = await fetchServerMasterHistory();
-      if (!synced) {
-        const res = await btcMasterAnalysisService.runFullMasterAnalysis();
-        if (res.success) {
-          setData(res.data);
-        } else {
-          setError(res.error || 'Error al calcular el análisis de Hoja 2');
-        }
+      const localRes = await btcMasterAnalysisService.runFullMasterAnalysis();
+      if (localRes.success) {
+        setData(localRes.data);
+        setLoading(false);
       }
     } catch (err) {
-      setError(err.message || 'Error de conexión con la nube');
+      console.warn('[Hoja 2 Local Calc Warning]:', err);
+    }
+
+    // 2. Sincronizar en segundo plano con la nube de Render para actualizar historial
+    try {
+      await fetchServerMasterHistory();
+    } catch (e) {
+      console.warn('[Hoja 2 Cloud Sync Warning]:', e);
     } finally {
       setLoading(false);
     }
