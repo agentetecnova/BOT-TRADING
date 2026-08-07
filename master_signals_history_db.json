@@ -1,0 +1,20 @@
+[
+  {
+    "id": "master_1786111074833",
+    "timestamp": "7/8/26, 10:57:54 a. m.",
+    "createdAt": 1786111074833,
+    "direction": "LONG",
+    "signalLabel": "SESGO ALCISTA 🟢",
+    "score": 1.98,
+    "confidencePercent": 68,
+    "entryPrice": 65036,
+    "tp1": 68102,
+    "tp2": 69913,
+    "sl": 62946,
+    "rr": 1.47,
+    "status": "PENDING",
+    "exitPrice": null,
+    "pnlPercent": 0,
+    "invalidationReason": null
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "id": "div_1786111075180",
+    "type": "SELL",
+    "direction": "SHORT",
+    "strategy": "Estrategia 1: Divergencias + Volumen",
+    "label": "Divergencia Bajista 🔻 (1H)",
+    "entry": 65036,
+    "tp1": 64496,
+    "tp2": 64103,
+    "sl": 65404,
+    "rr": 1.47,
+    "volSpikeConfirmed": true,
+    "status": "PENDING",
+    "createdAt": 1786111075186,
+    "timestamp": "7/8/26, 10:57:55 a. m.",
+    "pnlPercent": 0
+  }
+]

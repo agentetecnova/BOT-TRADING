@@ -89,31 +89,6 @@ function saveDiskDatabase() {
   }
 }
 
-  try {
-    if (fs.existsSync(MASTER_SIGNALS_FILE)) {
-      const data = fs.readFileSync(MASTER_SIGNALS_FILE, 'utf8');
-      masterSignalsHistory = JSON.parse(data);
-      console.log(`[PERSISTENCIA 24/7] Cargadas ${masterSignalsHistory.length} señales de Hoja 2 desde disco.`);
-    }
-  } catch (e) {
-    console.error('[PERSISTENCIA 24/7] Error cargando master_signals_history_db.json:', e.message);
-  }
-}
-
-function saveDiskDatabase() {
-  try {
-    fs.writeFileSync(SIGNALS_FILE, JSON.stringify(signalsHistory.slice(0, 300), null, 2), 'utf8');
-  } catch (e) {
-    console.error('[PERSISTENCIA 24/7] Error guardando signals_history_db.json:', e.message);
-  }
-
-  try {
-    fs.writeFileSync(MASTER_SIGNALS_FILE, JSON.stringify(masterSignalsHistory.slice(0, 300), null, 2), 'utf8');
-  } catch (e) {
-    console.error('[PERSISTENCIA 24/7] Error guardando master_signals_history_db.json:', e.message);
-  }
-}
-
 // Cargar base de datos al iniciar
 loadDiskDatabase();
 
