@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import btcMasterAnalysisService from '../services/BTCMasterAnalysisService';
 
 export default function BTCMasterSheet() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // 1. Inicialización instantánea sin spinner ni pantalla en blanco
+  const [data, setData] = useState(() => btcMasterAnalysisService.getFallbackAnalysisData());
   const [copied, setCopied] = useState(false);
   const [masterHistory, setMasterHistory] = useState(() => {
     try {
-      const saved = localStorage.getItem('btc_master_history_backup');
+      const saved = localStorage.getItem('btc_master_history_v2');
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       return [];
@@ -18,80 +17,44 @@ export default function BTCMasterSheet() {
 
   const RENDER_API = 'https://bot-trading-2.onrender.com';
 
-  const fetchServerMasterHistory = async () => {
-    try {
-      // 1. Obtener respaldo local cache existente
-      let localCache = [];
-      try {
-        const saved = localStorage.getItem('btc_master_history_backup');
-        if (saved) localCache = JSON.parse(saved);
-      } catch (e) {}
-
-      // 2. Sincronizar bidireccionalmente con el servidor 24/7 de Render
-      const response = await fetch(`${RENDER_API}/api/master-signals/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientHistory: localCache })
-      });
-
-      if (response.ok) {
-        const json = await response.json();
-        if (json && json.history && Array.isArray(json.history)) {
-          setMasterHistory(json.history);
-          try {
-            localStorage.setItem('btc_master_history_backup', JSON.stringify(json.history));
-          } catch (e) {}
-          
-          if (json.data && json.data.currentPrice && json.data.priceZones) {
-            setData(json.data);
-            return true; // Solo si se obtuvieron datos de análisis válidos
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('[Sync Cloud] Error conectando con la nube de Hoja 2:', err);
-    }
-    return false;
-  };
-
   const runAnalysis = async () => {
-    setLoading(true);
-    setError(null);
-
-    let hasLoaded = false;
-
-    // 1. Ejecutar cálculo local en vivo inmediatamente
+    // A. Actualizar con datos en vivo en 1s
     try {
-      const localRes = await btcMasterAnalysisService.runFullMasterAnalysis();
-      if (localRes && localRes.success && localRes.data) {
-        setData(localRes.data);
-        hasLoaded = true;
-        setLoading(false);
+      const res = await btcMasterAnalysisService.runFullMasterAnalysis();
+      if (res && res.data) {
+        setData(res.data);
       }
-    } catch (err) {
-      console.warn('[Hoja 2 Local Calc Warning]:', err);
-    }
-
-    // 2. Sincronizar en segundo plano con la nube de Render para actualizar historial
-    try {
-      const synced = await fetchServerMasterHistory();
-      if (synced) hasLoaded = true;
     } catch (e) {
-      console.warn('[Hoja 2 Cloud Sync Warning]:', e);
-    } finally {
-      setLoading(false);
+      console.warn('[BTCMasterSheet] Local update warning:', e);
     }
 
-    if (!hasLoaded && !data) {
-      setError('No se pudieron obtener datos del mercado en este momento. Por favor presiona Reintentar.');
-    }
+    // B. Consulta asíncrona a la nube en segundo plano (sin bloquear la interfaz)
+    fetch(`${RENDER_API}/api/master-signals`)
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (json && Array.isArray(json.history) && json.history.length > 0) {
+          setMasterHistory(prev => {
+            const ids = new Set(json.history.map(s => s.id));
+            const localOnly = prev.filter(s => !ids.has(s.id));
+            const merged = [...json.history, ...localOnly].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            try {
+              localStorage.setItem('btc_master_history_v2', JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
+        }
+        if (json && json.data && json.data.currentPrice) {
+          setData(json.data);
+        }
+      })
+      .catch(err => console.warn('[Cloud Background Sync]:', err));
   };
 
   const clearMasterHistory = async () => {
-    if (window.confirm('¿Seguro que deseas borrar el historial de señales de Hoja 2 en la nube y en todos los dispositivos?')) {
+    if (window.confirm('¿Seguro que deseas borrar el historial de señales de Hoja 2?')) {
       setMasterHistory([]);
       try {
-        localStorage.removeItem('btc_master_history_backup');
+        localStorage.removeItem('btc_master_history_v2');
         await fetch(`${RENDER_API}/api/master-signals/clear`, { method: 'POST' });
       } catch (e) {}
     }
@@ -99,7 +62,7 @@ export default function BTCMasterSheet() {
 
   useEffect(() => {
     runAnalysis();
-    const interval = setInterval(runAnalysis, 30000); // Actualizar cada 30s
+    const interval = setInterval(runAnalysis, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -110,38 +73,7 @@ export default function BTCMasterSheet() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  if (loading && !data) {
-    return (
-      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>👑</div>
-        <h3>Ejecutando Análisis Cuantitativo Maestro de BTC...</h3>
-        <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>Calculando 6 bloques de indicadores, SMC, Order Blocks, Wyckoff y Scoring (-10 a +10)...</p>
-      </div>
-    );
-  }
-
-  if (error && !data) {
-    return (
-      <div style={{ padding: '2rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px', color: '#ef4444' }}>
-        <h3>⚠️ Error en Hoja 2</h3>
-        <p>{error}</p>
-        <button onClick={runAnalysis} style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Reintentar</button>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>👑</div>
-        <h3>Inicializando Hoja 2 BTC Master Pro...</h3>
-        <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>{error || 'Obteniendo datos en tiempo real de Binance...'}</p>
-        <button onClick={runAnalysis} style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#a855f7', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>🔄 Reintentar Análisis</button>
-      </div>
-    );
-  }
-
-  const p = data?.currentPrice || 0;
+  const p = data?.currentPrice || 65200;
   const z = data?.priceZones || { r1: 0, r2: 0, s1: 0, s2: 0, longSetup: {}, shortSetup: {} };
   const l = z?.longSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
   const s = z?.shortSetup || { entry: p, sl: p, tp1: p, tp2: p, rr: 2 };
