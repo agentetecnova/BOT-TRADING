@@ -74,6 +74,12 @@ export default function BTCDivergenceQuantSheet() {
   };
 
   const runAnalysis = async () => {
+    let currentHistory = masterHistory;
+    try {
+      const saved = localStorage.getItem('btc_hoja3_history_v1');
+      if (saved) currentHistory = JSON.parse(saved);
+    } catch (e) {}
+
     try {
       const res = await divergenceQuantService.runFullDivergenceQuantAnalysis();
       if (res && res.data) {
@@ -84,26 +90,29 @@ export default function BTCDivergenceQuantSheet() {
       console.warn('[BTCDivergenceQuantSheet] Local update warning:', e);
     }
 
-    // Consulta asíncrona a la nube en segundo plano
-    fetch(`${RENDER_API}/api/hoja3-signals`)
-      .then(res => res.ok ? res.json() : null)
-      .then(json => {
-        if (json && Array.isArray(json.history) && json.history.length > 0) {
-          setMasterHistory(prev => {
-            const ids = new Set(json.history.map(s => s.id));
-            const localOnly = prev.filter(s => !ids.has(s.id));
-            const merged = [...json.history, ...localOnly].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-            try {
-              localStorage.setItem('btc_hoja3_history_v1', JSON.stringify(merged));
-            } catch (e) {}
-            return merged;
-          });
+    // Sincronización BIDIRECCIONAL AUTO-RECUPERABLE con la nube de Render
+    try {
+      const response = await fetch(`${RENDER_API}/api/hoja3-signals/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientHistory: currentHistory })
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        if (json && Array.isArray(json.history)) {
+          setMasterHistory(json.history);
+          try {
+            localStorage.setItem('btc_hoja3_history_v1', JSON.stringify(json.history));
+          } catch (e) {}
         }
         if (json && json.data && json.data.currentPrice) {
           setData(json.data);
         }
-      })
-      .catch(err => console.warn('[Cloud H3 Sync]:', err));
+      }
+    } catch (err) {
+      console.warn('[Cloud Hoja 3 Sync Warning]:', err);
+    }
   };
 
   const clearMasterHistory = async () => {
@@ -138,7 +147,6 @@ export default function BTCDivergenceQuantSheet() {
   const totalSignals = masterHistory.length;
   const tpSignals = masterHistory.filter(item => item.status === 'TP').length;
   const slSignals = masterHistory.filter(item => item.status === 'SL').length;
-  const invSignals = masterHistory.filter(item => item.status === 'INVALIDATED').length;
   const pendingSignals = masterHistory.filter(item => item.status === 'PENDING').length;
   const completedSignals = tpSignals + slSignals;
 
@@ -150,6 +158,8 @@ export default function BTCDivergenceQuantSheet() {
 
   const filteredHistory = masterHistory.filter(item => {
     if (historyFilter === 'ALL') return true;
+    if (historyFilter === 'STRAT1') return item.strategy?.includes('Estrategia 1') || item.label?.includes('Divergencia');
+    if (historyFilter === 'STRAT2') return item.strategy?.includes('Estrategia 2') || item.label?.includes('Quant');
     return item.status === historyFilter;
   });
 
@@ -414,24 +424,31 @@ export default function BTCDivergenceQuantSheet() {
             </div>
           </div>
 
-          {/* FILTROS */}
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {['ALL', 'PENDING', 'TP', 'SL'].map(f => (
+          {/* FILTROS DE HISTORIAL Y ESTRATEGIA */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {[
+              { id: 'ALL', label: 'Todas las Señales' },
+              { id: 'STRAT1', label: '1️⃣ Estrategia 1: Divergencias' },
+              { id: 'STRAT2', label: '2️⃣ Estrategia 2: Quant Squeeze' },
+              { id: 'PENDING', label: '⏳ En Curso' },
+              { id: 'TP', label: '✅ Ganadoras (TP)' },
+              { id: 'SL', label: '❌ Pérdidas (SL)' }
+            ].map(f => (
               <button
-                key={f}
-                onClick={() => setHistoryFilter(f)}
+                key={f.id}
+                onClick={() => setHistoryFilter(f.id)}
                 style={{
                   padding: '0.35rem 0.75rem',
                   borderRadius: '6px',
                   fontSize: '0.75rem',
                   fontWeight: 700,
-                  background: historyFilter === f ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${historyFilter === f ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
-                  color: historyFilter === f ? '#fff' : 'var(--color-text-muted)',
+                  background: historyFilter === f.id ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${historyFilter === f.id ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                  color: historyFilter === f.id ? '#fff' : 'var(--color-text-muted)',
                   cursor: 'pointer'
                 }}
               >
-                {f === 'ALL' ? 'Todas' : f === 'PENDING' ? 'En Curso (Pending)' : f === 'TP' ? 'Ganadoras (TP)' : 'Pérdidas (SL)'}
+                {f.label}
               </button>
             ))}
           </div>

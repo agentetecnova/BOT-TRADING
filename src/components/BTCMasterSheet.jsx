@@ -18,37 +18,122 @@ export default function BTCMasterSheet() {
 
   const RENDER_API = 'https://bot-trading-2.onrender.com';
 
+  const updateMasterHistoryFromData = (freshData) => {
+    if (!freshData || !freshData.currentPrice || !freshData.priceZones) return;
+
+    setMasterHistory(prev => {
+      let updated = [...prev];
+      const p = freshData.currentPrice;
+      const score = freshData.compositeScore;
+      const z = freshData.priceZones;
+      const sigText = freshData.signal;
+      const sigEmoji = freshData.signalEmoji;
+      const isActionable = Math.abs(score) >= 1.0;
+
+      // 1. Evaluar PENDING existentes
+      updated = updated.map(item => {
+        if (item.status !== 'PENDING') return item;
+
+        if (item.direction === 'LONG') {
+          if (p >= item.tp1) {
+            const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
+            return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+          }
+          if (p <= item.sl) {
+            const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
+            return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+          }
+        } else if (item.direction === 'SHORT') {
+          if (p <= item.tp1) {
+            const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
+            return { ...item, status: 'TP', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+          }
+          if (p >= item.sl) {
+            const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
+            return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
+          }
+        }
+        return item;
+      });
+
+      // 2. Registrar nueva señal si es accionable
+      if (isActionable) {
+        const direction = score > 0 ? 'LONG' : 'SHORT';
+        const setup = direction === 'LONG' ? z.longSetup : z.shortSetup;
+        const hasPendingSameDir = updated.some(item => item.status === 'PENDING' && item.direction === direction);
+
+        if (!hasPendingSameDir && setup && setup.tp1 && setup.sl) {
+          const nowStr = new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' });
+          const newSignalObj = {
+            id: `master_${Date.now()}`,
+            timestamp: nowStr,
+            createdAt: Date.now(),
+            direction,
+            signalLabel: `${sigText} ${sigEmoji}`,
+            score,
+            confidencePercent: freshData.confidencePercent || 80,
+            entryPrice: Math.round(p),
+            tp1: setup.tp1,
+            tp2: setup.tp2,
+            sl: setup.sl,
+            rr: setup.rr,
+            status: 'PENDING',
+            exitPrice: null,
+            pnlPercent: 0
+          };
+          updated.unshift(newSignalObj);
+        }
+      }
+
+      try {
+        localStorage.setItem('btc_master_history_v2', JSON.stringify(updated.slice(0, 150)));
+      } catch (e) {}
+
+      return updated;
+    });
+  };
+
   const runAnalysis = async () => {
-    // A. Actualizar con datos en vivo en 1s
+    let currentHistory = masterHistory;
+    try {
+      const saved = localStorage.getItem('btc_master_history_v2');
+      if (saved) currentHistory = JSON.parse(saved);
+    } catch (e) {}
+
+    // A. Actualizar con datos en vivo localmente en 1s
     try {
       const res = await btcMasterAnalysisService.runFullMasterAnalysis();
       if (res && res.data) {
         setData(res.data);
+        updateMasterHistoryFromData(res.data);
       }
     } catch (e) {
       console.warn('[BTCMasterSheet] Local update warning:', e);
     }
 
-    // B. Consulta asíncrona a la nube en segundo plano (sin bloquear la interfaz)
-    fetch(`${RENDER_API}/api/master-signals`)
-      .then(res => res.ok ? res.json() : null)
-      .then(json => {
-        if (json && Array.isArray(json.history) && json.history.length > 0) {
-          setMasterHistory(prev => {
-            const ids = new Set(json.history.map(s => s.id));
-            const localOnly = prev.filter(s => !ids.has(s.id));
-            const merged = [...json.history, ...localOnly].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-            try {
-              localStorage.setItem('btc_master_history_v2', JSON.stringify(merged));
-            } catch (e) {}
-            return merged;
-          });
+    // B. Sincronización BIDIRECCIONAL AUTO-RECUPERABLE con la nube de Render
+    try {
+      const response = await fetch(`${RENDER_API}/api/master-signals/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientHistory: currentHistory })
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        if (json && Array.isArray(json.history)) {
+          setMasterHistory(json.history);
+          try {
+            localStorage.setItem('btc_master_history_v2', JSON.stringify(json.history));
+          } catch (e) {}
         }
         if (json && json.data && json.data.currentPrice) {
           setData(json.data);
         }
-      })
-      .catch(err => console.warn('[Cloud Background Sync]:', err));
+      }
+    } catch (err) {
+      console.warn('[Cloud Master Sync Warning]:', err);
+    }
   };
 
   const clearMasterHistory = async () => {
@@ -87,7 +172,6 @@ export default function BTCMasterSheet() {
   const totalSignals = masterHistory.length;
   const tpSignals = masterHistory.filter(item => item.status === 'TP').length;
   const slSignals = masterHistory.filter(item => item.status === 'SL').length;
-  const invSignals = masterHistory.filter(item => item.status === 'INVALIDATED').length;
   const pendingSignals = masterHistory.filter(item => item.status === 'PENDING').length;
   const completedSignals = tpSignals + slSignals;
 
@@ -287,12 +371,6 @@ export default function BTCMasterSheet() {
               <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f59e0b', margin: '0.2rem 0' }}>{pendingSignals}</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Pendientes de TP/SL</div>
             </div>
-
-            <div className="glass-panel" style={{ padding: '1.2rem', borderRadius: '16px', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Invalidadas</div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f97316', margin: '0.2rem 0' }}>{invSignals}</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Salidas Precoces</div>
-            </div>
           </div>
 
           {/* PANEL DE TABLA Y FILTROS */}
@@ -303,7 +381,7 @@ export default function BTCMasterSheet() {
                   📜 Registro de Señales & Desempeño en el Tiempo (Hoja 2)
                 </h3>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
-                  Historial automático de señales con evaluación continua de TP, SL y Salidas Precoces (Invalidaciones).
+                  Historial automático de señales con evaluación continua de TP (Aciertos) y SL (Pérdidas).
                 </p>
               </div>
 
@@ -332,8 +410,7 @@ export default function BTCMasterSheet() {
                 { key: 'ALL', label: `Todas (${masterHistory.length})` },
                 { key: 'PENDING', label: `En Curso (${pendingSignals})` },
                 { key: 'TP', label: `Aciertos ✅ (${tpSignals})` },
-                { key: 'SL', label: `Pérdidas ❌ (${slSignals})` },
-                { key: 'INVALIDATED', label: `Invalidadas ⚠️ (${invSignals})` }
+                { key: 'SL', label: `Pérdidas ❌ (${slSignals})` }
               ].map(f => (
                 <button
                   key={f.key}

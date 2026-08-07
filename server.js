@@ -118,18 +118,6 @@ function processMasterSignals247(freshData) {
         log('HOJA 2 24/7', `❌ Señal LONG tocó SL a $${p} (${pnl}%)`, 'error');
         return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
       }
-      if (score <= -2.5) {
-        const pnl = parseFloat((((p - item.entryPrice) / item.entryPrice) * 100).toFixed(2));
-        log('HOJA 2 24/7', `⚠️ Señal LONG INVALIDADA a $${p}`, 'warning');
-        return {
-          ...item,
-          status: 'INVALIDATED',
-          exitPrice: p,
-          pnlPercent: pnl,
-          resolvedAt: Date.now(),
-          invalidationReason: `Giro de estrategia a bajista (Score: ${score})`
-        };
-      }
     } else if (item.direction === 'SHORT') {
       if (p <= item.tp1) {
         const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
@@ -140,18 +128,6 @@ function processMasterSignals247(freshData) {
         const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
         log('HOJA 2 24/7', `❌ Señal SHORT tocó SL a $${p} (${pnl}%)`, 'error');
         return { ...item, status: 'SL', exitPrice: p, pnlPercent: pnl, resolvedAt: Date.now() };
-      }
-      if (score >= 2.5) {
-        const pnl = parseFloat((((item.entryPrice - p) / item.entryPrice) * 100).toFixed(2));
-        log('HOJA 2 24/7', `⚠️ Señal SHORT INVALIDADA a $${p}`, 'warning');
-        return {
-          ...item,
-          status: 'INVALIDATED',
-          exitPrice: p,
-          pnlPercent: pnl,
-          resolvedAt: Date.now(),
-          invalidationReason: `Giro de estrategia a alcista (Score: ${score})`
-        };
       }
     }
     return item;
@@ -380,9 +356,6 @@ async function runContinuousAnalysis() {
         return sig;
       });
     }
-
-    // Evaluar invalidaciones
-    processSignalInvalidations(resultsMap);
 
     // Agregar nuevas señales
     Object.entries(resultsMap).forEach(([stratName, res]) => {

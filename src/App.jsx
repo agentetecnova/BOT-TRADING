@@ -510,6 +510,9 @@ export default function App() {
       };
 
       const next = [newSignal, ...prev];
+      try {
+        localStorage.setItem('btc_signals_history_backup', JSON.stringify(next.slice(0, 150)));
+      } catch (e) {}
       addLog('Algoritmo', `Nueva señal ${sig.type} generada por ${strategyName} a $${formatPrice(sig.entry)}`);
       return next;
     });
@@ -1996,26 +1999,26 @@ export default function App() {
           </div>
 
           {/* Strategy Filter Bar */}
-          <div className="strategy-filter-bar">
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Filtrar Estrategia:</span>
-            {['ALL', 'Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4'].map((strat) => (
+          <div className="strategy-filter-bar" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Filtrar por Estrategia:</span>
+            {['ALL', 'Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4', 'Estrategia 5', 'Estrategia 6', 'Estrategia 7', 'Estrategia 8', 'Estrategia 9', 'Estrategia 10', 'Estrategia 11', 'Estrategia 12', 'Estrategia 13'].map((strat) => (
               <button
                 key={strat}
                 onClick={() => setSelectedStratFilter(strat)}
                 className="strategy-filter-btn"
                 style={{
-                  padding: '0.3rem 0.75rem',
+                  padding: '0.3rem 0.6rem',
                   borderRadius: '6px',
-                  fontSize: '0.75rem',
+                  fontSize: '0.73rem',
                   fontWeight: 600,
-                  background: selectedStratFilter === strat ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.03)',
+                  background: selectedStratFilter === strat ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255,255,255,0.03)',
                   border: `1px solid ${selectedStratFilter === strat ? '#f59e0b' : 'rgba(255,255,255,0.06)'}`,
                   color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease'
                 }}
               >
-                {strat === 'ALL' ? 'Todas (E1-E4)' : strat}
+                {strat === 'ALL' ? 'Todas (E1-E13)' : strat.replace('Estrategia ', 'E')}
               </button>
             ))}
           </div>
@@ -2036,9 +2039,8 @@ export default function App() {
               </thead>
               <tbody>
                 {signalsHistory
-                  .filter((sig) => ['Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4'].includes(sig.strategy))
                   .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
-                  .slice(0, 15)
+                  .slice(0, 30)
                   .map((sig) => {
                     const d = new Date(sig.timestamp);
                     const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
