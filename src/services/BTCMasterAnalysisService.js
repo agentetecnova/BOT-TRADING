@@ -22,7 +22,8 @@ class BTCMasterAnalysisService {
    */
   async runFullMasterAnalysis() {
     try {
-      const [k1m, k5m, k15m, k1h, k4h, k1d, k1w] = await Promise.all([
+      // 1. Obtener klines de forma resiliente con Promise.allSettled
+      const results = await Promise.allSettled([
         technicalAnalysisService.fetchKlines('BTCUSDT', '1m', 300),
         technicalAnalysisService.fetchKlines('BTCUSDT', '5m', 500),
         technicalAnalysisService.fetchKlines('BTCUSDT', '15m', 500),
@@ -32,12 +33,22 @@ class BTCMasterAnalysisService {
         technicalAnalysisService.fetchKlines('BTCUSDT', '1w', 100)
       ]);
 
-      const klinesMap = { '1m': k1m, '5m': k5m, '15m': k15m, '1h': k1h, '4h': k4h, '1d': k1d, '1w': k1w };
+      const [k1m, k5m, k15m, k1h, k4h, k1d, k1w] = results.map(r => (r.status === 'fulfilled' && Array.isArray(r.value) && r.value.length > 0) ? r.value : null);
+
+      const valid4h = k4h || k1h || k15m || k5m;
+      const valid1d = k1d || valid4h;
+      const valid1w = k1w || valid1d;
+
+      if (!valid1d || valid1d.length < 5) {
+        throw new Error('No se pudieron obtener velas del mercado desde Binance');
+      }
+
+      const klinesMap = { '1m': k1m || valid4h, '5m': k5m || valid4h, '15m': k15m || valid4h, '1h': k1h || valid4h, '4h': valid4h, '1d': valid1d, '1w': valid1w };
 
       // Análisis individual por timeframes clave
-      const analysis4h = this.analyzeTimeframe(k4h, '4h');
-      const analysis1d = this.analyzeTimeframe(k1d, '1d');
-      const analysis1w = this.analyzeTimeframe(k1w, '1w');
+      const analysis4h = this.analyzeTimeframe(valid4h, '4h');
+      const analysis1d = this.analyzeTimeframe(valid1d, '1d');
+      const analysis1w = this.analyzeTimeframe(valid1w, '1w');
 
       // Ponderación Multi-Timeframe (1w: 30%, 1d: 45%, 4h: 25%)
       const compositeScore = parseFloat(
@@ -48,9 +59,9 @@ class BTCMasterAnalysisService {
       const signalInfo = this.evaluateSignal(compositeScore);
 
       // Cálculo de Zonas de Precio y Setup (basado en el precio spot y ATR 1d)
-      const currentPrice = k1d[k1d.length - 1].close;
+      const currentPrice = valid1d[valid1d.length - 1].close;
       const atr1d = analysis1d.volatility.atr;
-      const priceZones = this.calculatePriceZones(currentPrice, atr1d, k1d, analysis1d);
+      const priceZones = this.calculatePriceZones(currentPrice, atr1d, valid1d, analysis1d);
 
       // Evaluación de Riesgos / Advertencias
       const riskFlags = this.evaluateRiskFlags(analysis4h, analysis1d, analysis1w);

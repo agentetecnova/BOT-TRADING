@@ -58,11 +58,14 @@ export default function BTCMasterSheet() {
     setLoading(true);
     setError(null);
 
-    // 1. Ejecutar cálculo local en vivo inmediatamente (Pantalla carga en 1s sin bloqueos)
+    let hasLoaded = false;
+
+    // 1. Ejecutar cálculo local en vivo inmediatamente
     try {
       const localRes = await btcMasterAnalysisService.runFullMasterAnalysis();
-      if (localRes.success) {
+      if (localRes && localRes.success && localRes.data) {
         setData(localRes.data);
+        hasLoaded = true;
         setLoading(false);
       }
     } catch (err) {
@@ -71,11 +74,16 @@ export default function BTCMasterSheet() {
 
     // 2. Sincronizar en segundo plano con la nube de Render para actualizar historial
     try {
-      await fetchServerMasterHistory();
+      const synced = await fetchServerMasterHistory();
+      if (synced) hasLoaded = true;
     } catch (e) {
       console.warn('[Hoja 2 Cloud Sync Warning]:', e);
     } finally {
       setLoading(false);
+    }
+
+    if (!hasLoaded && !data) {
+      setError('No se pudieron obtener datos del mercado en este momento. Por favor presiona Reintentar.');
     }
   };
 
