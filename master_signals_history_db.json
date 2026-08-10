@@ -1,5 +1,24 @@
 [
   {
+    "id": "master_1786393138510",
+    "timestamp": "10/8/26, 5:18:58 p. m.",
+    "createdAt": 1786393138510,
+    "direction": "SHORT",
+    "signalLabel": "SESGO BAJISTA 🔴",
+    "score": -1.25,
+    "confidencePercent": 68,
+    "entryPrice": 64103,
+    "tp1": 61250,
+    "tp2": 59564,
+    "sl": 66049,
+    "rr": 1.47,
+    "status": "PENDING",
+    "exitPrice": null,
+    "pnlPercent": 0,
+    "invalidationReason": null,
+    "timestampMs": 1786393138510
+  },
+  {
     "id": "master_1786111074833",
     "timestamp": "7/8/26, 10:57:54 a. m.",
     "createdAt": 1786111074833,
@@ -15,6 +34,7 @@
     "status": "PENDING",
     "exitPrice": null,
     "pnlPercent": 0,
-    "invalidationReason": null
+    "invalidationReason": null,
+    "timestampMs": 1786111074833
   }
 ]

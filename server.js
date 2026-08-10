@@ -221,33 +221,7 @@ function processHoja3Signals247(freshData) {
   saveDiskDatabase();
 }
 
-// Reevaluar e invalidar señales en estado PENDING
-function processSignalInvalidations(resultsMap) {
-  let updated = false;
-  signalsHistory = signalsHistory.map(sig => {
-    if (sig.status !== 'PENDING') return sig;
-
-    const freshRes = resultsMap[sig.strategy];
-    if (!freshRes) return sig;
-
-    const check = technicalAnalysisService.checkSignalInvalidation(sig, freshRes, lastBtcPrice);
-    if (check.isInvalidated) {
-      updated = true;
-      const currentExitPrice = lastBtcPrice || sig.entry;
-      log('ALGORITMO 24/7', `⚠️ Señal ${sig.type} de ${sig.strategy} INVALIDADA PRECOZMENTE a $${currentExitPrice}. Motivo: ${check.reason}`, 'warning');
-      return {
-        ...sig,
-        status: 'INVALIDATED',
-        resolvedAt: Date.now(),
-        exitPrice: currentExitPrice,
-        invalidationReason: check.reason
-      };
-    }
-    return sig;
-  });
-
-  if (updated) saveDiskDatabase();
-}
+// Las señales se mantienen PENDING hasta tocar estrictamente TP o SL para un cálculo infalible de Win Rate %
 
 // Agregar nuevas señales evitando duplicados PENDING de la misma estrategia
 function addNewSignal(strategyName, strategyResult) {

@@ -11,9 +11,12 @@
     "sl": 65404,
     "rr": 1.47,
     "volSpikeConfirmed": true,
-    "status": "PENDING",
+    "status": "TP",
     "createdAt": 1786111075186,
     "timestamp": "7/8/26, 10:57:55 a. m.",
-    "pnlPercent": 0
+    "pnlPercent": 1.43,
+    "timestampMs": 1786111075186,
+    "exitPrice": 64103.99,
+    "resolvedAt": 1786393138869
   }
 ]
