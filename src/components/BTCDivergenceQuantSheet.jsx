@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import divergenceQuantService from '../services/DivergenceQuantService';
+import SignalHistoryService from '../services/SignalHistoryService';
 
 export default function BTCDivergenceQuantSheet() {
   const [data, setData] = useState(() => divergenceQuantService.getFallbackData());
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [masterHistory, setMasterHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('btc_hoja3_history_v1');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
+    return SignalHistoryService.loadFromLocalStorage('btc_hoja3_history_v1');
   });
   const [historyFilter, setHistoryFilter] = useState('ALL');
+  const [dateRangeFilter, setDateRangeFilter] = useState('ALL');
 
   const RENDER_API = 'https://bot-trading-2.onrender.com';
 
@@ -52,11 +49,12 @@ export default function BTCDivergenceQuantSheet() {
       });
 
       // 2. Agregar nuevas señales si no existen activas
+      let newItems = [];
       sigs.forEach(newSig => {
         const hasPending = updated.some(item => item.strategy === newSig.strategy && item.status === 'PENDING');
         if (!hasPending) {
           const nowStr = new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' });
-          updated.unshift({
+          newItems.push({
             ...newSig,
             timestamp: nowStr,
             createdAt: Date.now(),
@@ -65,20 +63,14 @@ export default function BTCDivergenceQuantSheet() {
         }
       });
 
-      try {
-        localStorage.setItem('btc_hoja3_history_v1', JSON.stringify(updated.slice(0, 150)));
-      } catch (e) {}
-
-      return updated;
+      const merged = SignalHistoryService.unionMerge(newItems, updated, 2000);
+      SignalHistoryService.saveToLocalStorage('btc_hoja3_history_v1', merged, 2000);
+      return merged;
     });
   };
 
   const runAnalysis = async () => {
-    let currentHistory = masterHistory;
-    try {
-      const saved = localStorage.getItem('btc_hoja3_history_v1');
-      if (saved) currentHistory = JSON.parse(saved);
-    } catch (e) {}
+    let currentHistory = SignalHistoryService.loadFromLocalStorage('btc_hoja3_history_v1');
 
     try {
       const res = await divergenceQuantService.runFullDivergenceQuantAnalysis();
@@ -101,10 +93,11 @@ export default function BTCDivergenceQuantSheet() {
       if (response.ok) {
         const json = await response.json();
         if (json && Array.isArray(json.history)) {
-          setMasterHistory(json.history);
-          try {
-            localStorage.setItem('btc_hoja3_history_v1', JSON.stringify(json.history));
-          } catch (e) {}
+          setMasterHistory(prev => {
+            const merged = SignalHistoryService.unionMerge(prev, json.history, 2000);
+            SignalHistoryService.saveToLocalStorage('btc_hoja3_history_v1', merged, 2000);
+            return merged;
+          });
         }
         if (json && json.data && json.data.currentPrice) {
           setData(json.data);
@@ -156,7 +149,8 @@ export default function BTCDivergenceQuantSheet() {
 
   const totalPnl = masterHistory.reduce((acc, curr) => acc + (curr.pnlPercent || 0), 0).toFixed(2);
 
-  const filteredHistory = masterHistory.filter(item => {
+  const dateFilteredHistory = SignalHistoryService.filterSignalsByDateRange(masterHistory, dateRangeFilter);
+  const filteredHistory = dateFilteredHistory.filter(item => {
     if (historyFilter === 'ALL') return true;
     if (historyFilter === 'STRAT1') return item.strategy?.includes('Estrategia 1') || item.label?.includes('Divergencia');
     if (historyFilter === 'STRAT2') return item.strategy?.includes('Estrategia 2') || item.label?.includes('Quant');
@@ -424,33 +418,63 @@ export default function BTCDivergenceQuantSheet() {
             </div>
           </div>
 
-          {/* FILTROS DE HISTORIAL Y ESTRATEGIA */}
-          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-            {[
-              { id: 'ALL', label: 'Todas las Señales' },
-              { id: 'STRAT1', label: '1️⃣ Estrategia 1: Divergencias' },
-              { id: 'STRAT2', label: '2️⃣ Estrategia 2: Quant Squeeze' },
-              { id: 'PENDING', label: '⏳ En Curso' },
-              { id: 'TP', label: '✅ Ganadoras (TP)' },
-              { id: 'SL', label: '❌ Pérdidas (SL)' }
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setHistoryFilter(f.id)}
-                style={{
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  background: historyFilter === f.id ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${historyFilter === f.id ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
-                  color: historyFilter === f.id ? '#fff' : 'var(--color-text-muted)',
-                  cursor: 'pointer'
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* FILTROS DE HISTORIAL (Rango de Fecha y Estrategia/Estado) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: '0.3rem' }}>📅 Rango:</span>
+              {[
+                { key: 'ALL', label: '🌐 Historial Completo' },
+                { key: 'TODAY', label: '☀️ Hoy' },
+                { key: '7D', label: '📆 Últimos 7 Días' },
+                { key: '30D', label: '📊 Últimos 30 Días' }
+              ].map(df => (
+                <button
+                  key={df.key}
+                  onClick={() => setDateRangeFilter(df.key)}
+                  style={{
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    background: dateRangeFilter === df.key ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${dateRangeFilter === df.key ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                    color: dateRangeFilter === df.key ? '#fff' : 'var(--color-text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {df.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: '0.3rem' }}>🎯 Filtro:</span>
+              {[
+                { id: 'ALL', label: `Todas (${dateFilteredHistory.length})` },
+                { id: 'STRAT1', label: '1️⃣ Divergencias' },
+                { id: 'STRAT2', label: '2️⃣ Quant Squeeze' },
+                { id: 'PENDING', label: '⏳ En Curso' },
+                { id: 'TP', label: '✅ Ganadoras (TP)' },
+                { id: 'SL', label: '❌ Pérdidas (SL)' }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setHistoryFilter(f.id)}
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    background: historyFilter === f.id ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${historyFilter === f.id ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                    color: historyFilter === f.id ? '#fff' : 'var(--color-text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* TABLA DE HISTORIAL */}

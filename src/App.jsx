@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import technicalAnalysisService from './services/TechnicalAnalysisService';
 import BTCMasterSheet from './components/BTCMasterSheet';
 import BTCDivergenceQuantSheet from './components/BTCDivergenceQuantSheet';
+import SignalHistoryService from './services/SignalHistoryService';
+import StrategyRankingComponent from './components/StrategyRankingComponent';
 import './App.css';
 
 class SheetErrorBoundary extends React.Component {
@@ -86,20 +88,19 @@ export default function App() {
   const [analysisError, setAnalysisError] = useState(null);
 
   // Signals History state
-  const [signalsHistory, setSignalsHistory] = useState([]);
+  const [signalsHistory, setSignalsHistory] = useState(() => SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup'));
   const [selectedStratFilter, setSelectedStratFilter] = useState('ALL');
+  const [dateRangeFilter, setDateRangeFilter] = useState('ALL');
 
   // Auto-scroll logs
   const consoleRef = useRef(null);
 
   // Load signals from local backup cache on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('btc_signals_history_backup');
-      if (saved) {
-        setSignalsHistory(JSON.parse(saved));
-      }
-    } catch (e) {}
+    const loaded = SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup');
+    if (loaded.length > 0) {
+      setSignalsHistory(loaded);
+    }
     addLog('Sistema', 'Terminal de Análisis Técnico de BTC Inicializada (Persistencia Nube Resiliente 24/7)');
   }, []);
 
@@ -107,11 +108,7 @@ export default function App() {
   useEffect(() => {
     const fetchRenderSignals = async () => {
       try {
-        let localCache = [];
-        try {
-          const saved = localStorage.getItem('btc_signals_history_backup');
-          if (saved) localCache = JSON.parse(saved);
-        } catch (e) {}
+        const localCache = SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup');
 
         const renderUrl = 'https://bot-trading-2.onrender.com/api/signals/sync';
         const res = await fetch(renderUrl, {
@@ -123,10 +120,11 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data && data.history && Array.isArray(data.history)) {
-            setSignalsHistory(data.history);
-            try {
-              localStorage.setItem('btc_signals_history_backup', JSON.stringify(data.history));
-            } catch (e) {}
+            setSignalsHistory(prev => {
+              const merged = SignalHistoryService.unionMerge(prev, data.history, 2000);
+              SignalHistoryService.saveToLocalStorage('btc_signals_history_backup', merged, 2000);
+              return merged;
+            });
           }
           if (data && data.masterConsensus) {
             setMasterConsensusData(data.masterConsensus);
@@ -497,6 +495,7 @@ export default function App() {
       const newSignal = {
         id: `${strategyName.replace(/\s+/g, '_')}_${Date.now()}`,
         timestamp: Date.now(),
+        createdAt: Date.now(),
         strategy: strategyName,
         type: sig.type,
         entry: sig.entry,
@@ -509,10 +508,8 @@ export default function App() {
         exitPrice: null
       };
 
-      const next = [newSignal, ...prev];
-      try {
-        localStorage.setItem('btc_signals_history_backup', JSON.stringify(next.slice(0, 150)));
-      } catch (e) {}
+      const next = SignalHistoryService.unionMerge([newSignal], prev, 2000);
+      SignalHistoryService.saveToLocalStorage('btc_signals_history_backup', next, 2000);
       addLog('Algoritmo', `Nueva señal ${sig.type} generada por ${strategyName} a $${formatPrice(sig.entry)}`);
       return next;
     });
@@ -937,83 +934,70 @@ export default function App() {
         )}
       </div>
 
-      {/* TAB SYSTEM NAV SELECTOR */}
-      <div className="tab-switcher">
+      {/* TAB SYSTEM NAV SELECTOR (Pro Command Dashboard) */}
+      <div className="tab-switcher" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+        <button 
+          onClick={() => setActiveTab('ranking')}
+          className="tab-button"
+          style={{
+            background: activeTab === 'ranking' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+            border: `1px solid ${activeTab === 'ranking' ? '#f59e0b' : 'rgba(255,255,255,0.05)'}`,
+            color: activeTab === 'ranking' ? '#fff' : 'var(--color-text-muted)',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontWeight: 700,
+            fontSize: '0.88rem',
+            transition: 'all 0.3s ease'
+          }}
+        >
+          🏆 Ranking 25 Estrategias
+        </button>
         <button 
           onClick={() => setActiveTab('core')}
           className="tab-button"
           style={{
-            background: activeTab === 'core' ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
-            border: '1px solid',
-            borderColor: activeTab === 'core' ? '#f59e0b' : 'rgba(255,255,255,0.05)',
+            background: activeTab === 'core' ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+            border: `1px solid ${activeTab === 'core' ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
             color: activeTab === 'core' ? '#fff' : 'var(--color-text-muted)',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '8px',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '10px',
             cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.85rem',
+            fontWeight: 700,
+            fontSize: '0.88rem',
             transition: 'all 0.3s ease'
           }}
         >
-          🛸 Algoritmos Core (E1 - E4)
+          🎯 Consenso & Modelos Activos (25-in-1)
         </button>
         <button 
-          onClick={() => setActiveTab('advanced')}
+          onClick={() => setActiveTab('history')}
           className="tab-button"
           style={{
-            background: activeTab === 'advanced' ? 'rgba(168, 85, 247, 0.08)' : 'transparent',
-            border: '1px solid',
-            borderColor: activeTab === 'advanced' ? '#a855f7' : 'rgba(255,255,255,0.05)',
-            color: activeTab === 'advanced' ? '#fff' : 'var(--color-text-muted)',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '8px',
+            background: activeTab === 'history' ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+            border: `1px solid ${activeTab === 'history' ? '#a855f7' : 'rgba(255,255,255,0.05)'}`,
+            color: activeTab === 'history' ? '#fff' : 'var(--color-text-muted)',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '10px',
             cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.85rem',
+            fontWeight: 700,
+            fontSize: '0.88rem',
             transition: 'all 0.3s ease'
           }}
         >
-          🧠 Cuantitativo Avanzado (E5 - E7)
-        </button>
-        <button 
-          onClick={() => setActiveTab('institutional')}
-          className="tab-button"
-          style={{
-            background: activeTab === 'institutional' ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
-            border: '1px solid',
-            borderColor: activeTab === 'institutional' ? '#10b981' : 'rgba(255,255,255,0.05)',
-            color: activeTab === 'institutional' ? '#fff' : 'var(--color-text-muted)',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.85rem',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          🏛️ Modelos Institucionales (E8 - E10)
-        </button>
-        <button 
-          onClick={() => setActiveTab('scalping')}
-          className="tab-button"
-          style={{
-            background: activeTab === 'scalping' ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
-            border: '1px solid',
-            borderColor: activeTab === 'scalping' ? '#ef4444' : 'rgba(255,255,255,0.05)',
-            color: activeTab === 'scalping' ? '#fff' : 'var(--color-text-muted)',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.85rem',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          ⚡ Scalping Corto Plazo (E11 - E13)
+          📜 Historial Completo ({signalsHistory.length})
         </button>
       </div>
 
-      {activeTab === 'core' ? (
+      {activeTab === 'ranking' ? (
+        <StrategyRankingComponent 
+          signalsHistory={signalsHistory} 
+          onSelectStrategy={(stratKey) => {
+            setSelectedStratFilter(stratKey);
+            setActiveTab('history');
+          }} 
+        />
+      ) : activeTab === 'core' ? (
         <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {/* Section Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
@@ -1998,29 +1982,58 @@ export default function App() {
 
           </div>
 
-          {/* Strategy Filter Bar */}
-          <div className="strategy-filter-bar" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Filtrar por Estrategia:</span>
-            {['ALL', 'Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4', 'Estrategia 5', 'Estrategia 6', 'Estrategia 7', 'Estrategia 8', 'Estrategia 9', 'Estrategia 10', 'Estrategia 11', 'Estrategia 12', 'Estrategia 13'].map((strat) => (
-              <button
-                key={strat}
-                onClick={() => setSelectedStratFilter(strat)}
-                className="strategy-filter-btn"
-                style={{
-                  padding: '0.3rem 0.6rem',
-                  borderRadius: '6px',
-                  fontSize: '0.73rem',
-                  fontWeight: 600,
-                  background: selectedStratFilter === strat ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${selectedStratFilter === strat ? '#f59e0b' : 'rgba(255,255,255,0.06)'}`,
-                  color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {strat === 'ALL' ? 'Todas (E1-E13)' : strat.replace('Estrategia ', 'E')}
-              </button>
-            ))}
+          {/* Date & Strategy Filter Bar */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: '0.3rem' }}>📅 Rango Fecha:</span>
+              {[
+                { key: 'ALL', label: '🌐 Historial Completo' },
+                { key: 'TODAY', label: '☀️ Hoy' },
+                { key: '7D', label: '📆 Últimos 7 Días' },
+                { key: '30D', label: '📊 Últimos 30 Días' }
+              ].map(df => (
+                <button
+                  key={df.key}
+                  onClick={() => setDateRangeFilter(df.key)}
+                  style={{
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    background: dateRangeFilter === df.key ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${dateRangeFilter === df.key ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                    color: dateRangeFilter === df.key ? '#fff' : 'var(--color-text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {df.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="strategy-filter-bar" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Estrategia:</span>
+              {['ALL', ...Array.from({ length: 25 }, (_, i) => `Estrategia ${i + 1}`)].map((strat) => (
+                <button
+                  key={strat}
+                  onClick={() => setSelectedStratFilter(strat)}
+                  className="strategy-filter-btn"
+                  style={{
+                    padding: '0.3rem 0.6rem',
+                    borderRadius: '6px',
+                    fontSize: '0.73rem',
+                    fontWeight: 600,
+                    background: selectedStratFilter === strat ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${selectedStratFilter === strat ? '#f59e0b' : 'rgba(255,255,255,0.06)'}`,
+                    color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {strat === 'ALL' ? 'Todas (E1-E25)' : strat.replace('Estrategia ', 'E')}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Signals History Table */}
@@ -2038,9 +2051,9 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {signalsHistory
+                {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
                   .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
-                  .slice(0, 30)
+                  .slice(0, 500)
                   .map((sig) => {
                     const d = new Date(sig.timestamp);
                     const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -2075,7 +2088,7 @@ export default function App() {
             </table>
           </div>
         </section>
-      ) : activeTab === 'advanced' ? (
+      ) : activeTab === 'history' ? (
         <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
@@ -2184,10 +2197,10 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {signalsHistory
+                {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
                   .filter((sig) => ['Estrategia 5', 'Estrategia 6', 'Estrategia 7'].includes(sig.strategy))
                   .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
-                  .slice(0, 15)
+                  .slice(0, 500)
                   .map((sig) => {
                     const d = new Date(sig.timestamp);
                     const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -2331,10 +2344,10 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {signalsHistory
+                {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
                   .filter((sig) => ['Estrategia 8', 'Estrategia 9', 'Estrategia 10'].includes(sig.strategy))
                   .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
-                  .slice(0, 15)
+                  .slice(0, 500)
                   .map((sig) => {
                     const d = new Date(sig.timestamp);
                     const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -2476,10 +2489,10 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {signalsHistory
+                {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
                   .filter((sig) => ['Estrategia 11', 'Estrategia 12', 'Estrategia 13'].includes(sig.strategy))
                   .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
-                  .slice(0, 15)
+                  .slice(0, 500)
                   .map((sig) => {
                     const d = new Date(sig.timestamp);
                     const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });

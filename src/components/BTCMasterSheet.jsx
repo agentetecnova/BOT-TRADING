@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import btcMasterAnalysisService from '../services/BTCMasterAnalysisService';
+import SignalHistoryService from '../services/SignalHistoryService';
 
 export default function BTCMasterSheet() {
   // 1. Inicialización instantánea sin spinner ni pantalla en blanco
   const [data, setData] = useState(() => btcMasterAnalysisService.getFallbackAnalysisData());
   const [copied, setCopied] = useState(false);
   const [masterHistory, setMasterHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('btc_master_history_v2');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
+    return SignalHistoryService.loadFromLocalStorage('btc_master_history_v2');
   });
   const [activeTab, setActiveTab] = useState('overview');
   const [historyFilter, setHistoryFilter] = useState('ALL');
+  const [dateRangeFilter, setDateRangeFilter] = useState('ALL');
 
   const RENDER_API = 'https://bot-trading-2.onrender.com';
 
@@ -57,6 +54,7 @@ export default function BTCMasterSheet() {
       });
 
       // 2. Registrar nueva señal si es accionable
+      let newItems = [];
       if (isActionable) {
         const direction = score > 0 ? 'LONG' : 'SHORT';
         const setup = direction === 'LONG' ? z.longSetup : z.shortSetup;
@@ -81,24 +79,18 @@ export default function BTCMasterSheet() {
             exitPrice: null,
             pnlPercent: 0
           };
-          updated.unshift(newSignalObj);
+          newItems.push(newSignalObj);
         }
       }
 
-      try {
-        localStorage.setItem('btc_master_history_v2', JSON.stringify(updated.slice(0, 150)));
-      } catch (e) {}
-
-      return updated;
+      const merged = SignalHistoryService.unionMerge(newItems, updated, 2000);
+      SignalHistoryService.saveToLocalStorage('btc_master_history_v2', merged, 2000);
+      return merged;
     });
   };
 
   const runAnalysis = async () => {
-    let currentHistory = masterHistory;
-    try {
-      const saved = localStorage.getItem('btc_master_history_v2');
-      if (saved) currentHistory = JSON.parse(saved);
-    } catch (e) {}
+    let currentHistory = SignalHistoryService.loadFromLocalStorage('btc_master_history_v2');
 
     // A. Actualizar con datos en vivo localmente en 1s
     try {
@@ -122,10 +114,11 @@ export default function BTCMasterSheet() {
       if (response.ok) {
         const json = await response.json();
         if (json && Array.isArray(json.history)) {
-          setMasterHistory(json.history);
-          try {
-            localStorage.setItem('btc_master_history_v2', JSON.stringify(json.history));
-          } catch (e) {}
+          setMasterHistory(prev => {
+            const merged = SignalHistoryService.unionMerge(prev, json.history, 2000);
+            SignalHistoryService.saveToLocalStorage('btc_master_history_v2', merged, 2000);
+            return merged;
+          });
         }
         if (json && json.data && json.data.currentPrice) {
           setData(json.data);
@@ -181,7 +174,8 @@ export default function BTCMasterSheet() {
 
   const totalPnl = masterHistory.reduce((acc, curr) => acc + (curr.pnlPercent || 0), 0).toFixed(2);
 
-  const filteredHistory = masterHistory.filter(item => {
+  const dateFilteredHistory = SignalHistoryService.filterSignalsByDateRange(masterHistory, dateRangeFilter);
+  const filteredHistory = dateFilteredHistory.filter(item => {
     if (historyFilter === 'ALL') return true;
     return item.status === historyFilter;
   });
@@ -404,31 +398,61 @@ export default function BTCMasterSheet() {
               </div>
             </div>
 
-            {/* BOTONES DE FILTRO */}
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-              {[
-                { key: 'ALL', label: `Todas (${masterHistory.length})` },
-                { key: 'PENDING', label: `En Curso (${pendingSignals})` },
-                { key: 'TP', label: `Aciertos ✅ (${tpSignals})` },
-                { key: 'SL', label: `Pérdidas ❌ (${slSignals})` }
-              ].map(f => (
-                <button
-                  key={f.key}
-                  onClick={() => setHistoryFilter(f.key)}
-                  style={{
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '6px',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    background: historyFilter === f.key ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${historyFilter === f.key ? '#a855f7' : 'rgba(255,255,255,0.05)'}`,
-                    color: historyFilter === f.key ? '#fff' : 'var(--color-text-muted)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {f.label}
-                </button>
-              ))}
+            {/* BOTONES DE FILTRO (Rango de Fecha y Estado) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: '0.3rem' }}>📅 Rango:</span>
+                {[
+                  { key: 'ALL', label: '🌐 Historial Completo' },
+                  { key: 'TODAY', label: '☀️ Hoy' },
+                  { key: '7D', label: '📆 Últimos 7 Días' },
+                  { key: '30D', label: '📊 Últimos 30 Días' }
+                ].map(df => (
+                  <button
+                    key={df.key}
+                    onClick={() => setDateRangeFilter(df.key)}
+                    style={{
+                      padding: '0.3rem 0.65rem',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      background: dateRangeFilter === df.key ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${dateRangeFilter === df.key ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                      color: dateRangeFilter === df.key ? '#fff' : 'var(--color-text-muted)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {df.label}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: '0.3rem' }}>🎯 Estado:</span>
+                {[
+                  { key: 'ALL', label: `Todas (${dateFilteredHistory.length})` },
+                  { key: 'PENDING', label: `En Curso (${dateFilteredHistory.filter(i => i.status === 'PENDING').length})` },
+                  { key: 'TP', label: `Aciertos ✅ (${dateFilteredHistory.filter(i => i.status === 'TP').length})` },
+                  { key: 'SL', label: `Pérdidas ❌ (${dateFilteredHistory.filter(i => i.status === 'SL').length})` }
+                ].map(f => (
+                  <button
+                    key={f.key}
+                    onClick={() => setHistoryFilter(f.key)}
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      background: historyFilter === f.key ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${historyFilter === f.key ? '#a855f7' : 'rgba(255,255,255,0.05)'}`,
+                      color: historyFilter === f.key ? '#fff' : 'var(--color-text-muted)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* LISTADO DE SEÑALES */}

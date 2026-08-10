@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import technicalAnalysisService from './src/services/TechnicalAnalysisService.js';
 import btcMasterAnalysisService from './src/services/BTCMasterAnalysisService.js';
 import divergenceQuantService from './src/services/DivergenceQuantService.js';
+import SignalHistoryService from './src/services/SignalHistoryService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,7 +42,8 @@ function loadDiskDatabase() {
   try {
     if (fs.existsSync(SIGNALS_FILE)) {
       const data = fs.readFileSync(SIGNALS_FILE, 'utf8');
-      signalsHistory = JSON.parse(data);
+      const loaded = JSON.parse(data);
+      signalsHistory = SignalHistoryService.unionMerge([], loaded, 2000);
       console.log(`[PERSISTENCIA 24/7] Cargadas ${signalsHistory.length} señales de Hoja 1 desde disco.`);
     }
   } catch (e) {
@@ -51,7 +53,8 @@ function loadDiskDatabase() {
   try {
     if (fs.existsSync(MASTER_SIGNALS_FILE)) {
       const data = fs.readFileSync(MASTER_SIGNALS_FILE, 'utf8');
-      masterSignalsHistory = JSON.parse(data);
+      const loaded = JSON.parse(data);
+      masterSignalsHistory = SignalHistoryService.unionMerge([], loaded, 2000);
       console.log(`[PERSISTENCIA 24/7] Cargadas ${masterSignalsHistory.length} señales de Hoja 2 desde disco.`);
     }
   } catch (e) {
@@ -61,7 +64,8 @@ function loadDiskDatabase() {
   try {
     if (fs.existsSync(HOJA3_SIGNALS_FILE)) {
       const data = fs.readFileSync(HOJA3_SIGNALS_FILE, 'utf8');
-      hoja3SignalsHistory = JSON.parse(data);
+      const loaded = JSON.parse(data);
+      hoja3SignalsHistory = SignalHistoryService.unionMerge([], loaded, 2000);
       console.log(`[PERSISTENCIA 24/7] Cargadas ${hoja3SignalsHistory.length} señales de Hoja 3 desde disco.`);
     }
   } catch (e) {
@@ -71,19 +75,19 @@ function loadDiskDatabase() {
 
 function saveDiskDatabase() {
   try {
-    fs.writeFileSync(SIGNALS_FILE, JSON.stringify(signalsHistory.slice(0, 300), null, 2), 'utf8');
+    fs.writeFileSync(SIGNALS_FILE, JSON.stringify(signalsHistory.slice(0, 2000), null, 2), 'utf8');
   } catch (e) {
     console.error('[PERSISTENCIA 24/7] Error guardando signals_history_db.json:', e.message);
   }
 
   try {
-    fs.writeFileSync(MASTER_SIGNALS_FILE, JSON.stringify(masterSignalsHistory.slice(0, 300), null, 2), 'utf8');
+    fs.writeFileSync(MASTER_SIGNALS_FILE, JSON.stringify(masterSignalsHistory.slice(0, 2000), null, 2), 'utf8');
   } catch (e) {
     console.error('[PERSISTENCIA 24/7] Error guardando master_signals_history_db.json:', e.message);
   }
 
   try {
-    fs.writeFileSync(HOJA3_SIGNALS_FILE, JSON.stringify(hoja3SignalsHistory.slice(0, 300), null, 2), 'utf8');
+    fs.writeFileSync(HOJA3_SIGNALS_FILE, JSON.stringify(hoja3SignalsHistory.slice(0, 2000), null, 2), 'utf8');
   } catch (e) {
     console.error('[PERSISTENCIA 24/7] Error guardando hoja3_signals_history_db.json:', e.message);
   }
@@ -159,8 +163,7 @@ function processMasterSignals247(freshData) {
         pnlPercent: 0,
         invalidationReason: null
       };
-      masterSignalsHistory.unshift(newSignalObj);
-      if (masterSignalsHistory.length > 200) masterSignalsHistory.pop();
+      masterSignalsHistory = SignalHistoryService.unionMerge([newSignalObj], masterSignalsHistory, 2000);
       log('HOJA 2 24/7', `Nueva Señal Maestra 24/7 registrada: ${newSignalObj.signalLabel} a $${newSignalObj.entryPrice}`, 'success');
       saveDiskDatabase();
     }
@@ -204,13 +207,13 @@ function processHoja3Signals247(freshData) {
     const hasPending = hoja3SignalsHistory.some(item => item.strategy === newSig.strategy && item.status === 'PENDING');
     if (!hasPending) {
       const nowStr = new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' });
-      hoja3SignalsHistory.unshift({
+      const itemToAdd = {
         ...newSig,
         timestamp: nowStr,
         createdAt: Date.now(),
         pnlPercent: 0
-      });
-      if (hoja3SignalsHistory.length > 200) hoja3SignalsHistory.pop();
+      };
+      hoja3SignalsHistory = SignalHistoryService.unionMerge([itemToAdd], hoja3SignalsHistory, 2000);
       log('HOJA 3 24/7', `Nueva Señal Hoja 3 registrada: ${newSig.label} a $${newSig.entry}`, 'success');
     }
   });
@@ -269,8 +272,7 @@ function addNewSignal(strategyName, strategyResult) {
     exitPrice: null
   };
 
-  signalsHistory.unshift(newSignal);
-  if (signalsHistory.length > 200) signalsHistory.pop(); // Mantener últimas 200
+  signalsHistory = SignalHistoryService.unionMerge([newSignal], signalsHistory, 2000);
   saveDiskDatabase();
 
   log('ALGORITMO 24/7', `Nueva señal ${sig.type} generada por ${strategyName} a $${sig.entry}`, 'success');
@@ -310,8 +312,19 @@ async function runContinuousAnalysis() {
     const res11 = technicalAnalysisService.runStrategy11(k5m, 0);
     const res12 = technicalAnalysisService.runStrategy12(k5m);
     const res13 = technicalAnalysisService.runStrategy13(k15m);
+    const res14 = technicalAnalysisService.runStrategy14(k1h);
+    const res15 = technicalAnalysisService.runStrategy15(k4h);
+    const res16 = technicalAnalysisService.runStrategy16(k1h);
+    const res17 = technicalAnalysisService.runStrategy17(k15m);
+    const res18 = technicalAnalysisService.runStrategy18(k1d);
+    const res19 = technicalAnalysisService.runStrategy19(k15m);
+    const res20 = technicalAnalysisService.runStrategy20(k1h);
+    const res21 = technicalAnalysisService.runStrategy21(k15m);
+    const res22 = technicalAnalysisService.runStrategy22(k1h);
+    const res23 = technicalAnalysisService.runStrategy23(klinesMap);
+    const res24 = technicalAnalysisService.runStrategy24(k15m);
 
-    const resultsMap = {
+    const partialResults = {
       'Estrategia 1': res1,
       'Estrategia 2': res2,
       'Estrategia 3': res3,
@@ -325,7 +338,21 @@ async function runContinuousAnalysis() {
       'Estrategia 11': res11,
       'Estrategia 12': res12,
       'Estrategia 13': res13,
+      'Estrategia 14': res14,
+      'Estrategia 15': res15,
+      'Estrategia 16': res16,
+      'Estrategia 17': res17,
+      'Estrategia 18': res18,
+      'Estrategia 19': res19,
+      'Estrategia 20': res20,
+      'Estrategia 21': res21,
+      'Estrategia 22': res22,
+      'Estrategia 23': res23,
+      'Estrategia 24': res24,
     };
+
+    const res25 = technicalAnalysisService.runStrategy25(partialResults);
+    const resultsMap = { ...partialResults, 'Estrategia 25': res25 };
 
     const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap);
     latestAnalysis = { ...resultsMap, masterConsensus };
@@ -459,19 +486,9 @@ app.post('/api/hoja3-signals/sync', (req, res) => {
   try {
     const { clientHistory } = req.body;
     if (Array.isArray(clientHistory) && clientHistory.length > 0) {
-      const serverIds = new Set(hoja3SignalsHistory.map(s => s.id));
-      let added = false;
-      clientHistory.forEach(item => {
-        if (item && item.id && !serverIds.has(item.id)) {
-          hoja3SignalsHistory.push(item);
-          added = true;
-        }
-      });
-      if (added) {
-        hoja3SignalsHistory.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        saveDiskDatabase();
-        log('HOJA 3 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 3 desde respaldo de cliente.`, 'info');
-      }
+      hoja3SignalsHistory = SignalHistoryService.unionMerge(hoja3SignalsHistory, clientHistory, 2000);
+      saveDiskDatabase();
+      log('HOJA 3 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 3 desde respaldo de cliente. Total: ${hoja3SignalsHistory.length}`, 'info');
     }
   } catch (e) {
     console.error('[Sync Hoja 3 Error]:', e.message);
@@ -492,19 +509,9 @@ app.post('/api/master-signals/sync', (req, res) => {
   try {
     const { clientHistory } = req.body;
     if (Array.isArray(clientHistory) && clientHistory.length > 0) {
-      const serverIds = new Set(masterSignalsHistory.map(s => s.id));
-      let added = false;
-      clientHistory.forEach(item => {
-        if (item && item.id && !serverIds.has(item.id)) {
-          masterSignalsHistory.push(item);
-          added = true;
-        }
-      });
-      if (added) {
-        masterSignalsHistory.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        saveDiskDatabase();
-        log('HOJA 2 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 2 desde respaldo de cliente.`, 'info');
-      }
+      masterSignalsHistory = SignalHistoryService.unionMerge(masterSignalsHistory, clientHistory, 2000);
+      saveDiskDatabase();
+      log('HOJA 2 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 2 desde respaldo de cliente. Total: ${masterSignalsHistory.length}`, 'info');
     }
   } catch (e) {
     console.error('[Sync Master Error]:', e.message);
@@ -519,19 +526,9 @@ app.post('/api/signals/sync', (req, res) => {
   try {
     const { clientHistory } = req.body;
     if (Array.isArray(clientHistory) && clientHistory.length > 0) {
-      const serverIds = new Set(signalsHistory.map(s => s.id));
-      let added = false;
-      clientHistory.forEach(item => {
-        if (item && item.id && !serverIds.has(item.id)) {
-          signalsHistory.push(item);
-          added = true;
-        }
-      });
-      if (added) {
-        signalsHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        saveDiskDatabase();
-        log('ALGORITMO 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 1 desde respaldo de cliente.`, 'info');
-      }
+      signalsHistory = SignalHistoryService.unionMerge(signalsHistory, clientHistory, 2000);
+      saveDiskDatabase();
+      log('ALGORITMO 24/7', `Sincronizadas ${clientHistory.length} señales de Hoja 1 desde respaldo de cliente. Total: ${signalsHistory.length}`, 'info');
     }
   } catch (e) {
     console.error('[Sync Signals Error]:', e.message);
