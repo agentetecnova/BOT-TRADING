@@ -106,20 +106,31 @@ export default function App() {
     addLog('Sistema', 'Terminal de Análisis Técnico de BTC Inicializada (Persistencia Nube Resiliente 24/7)');
   }, []);
 
-  // Poll & Sync Render 24/7 API for background signals and server state
+  // Poll & Sync Server 24/7 API for background signals and server state
   useEffect(() => {
-    const fetchRenderSignals = async () => {
+    const fetchServerSignals = async () => {
       try {
         const localCache = SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup');
+        const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const urlsToTry = isLocalHost 
+          ? ['http://localhost:3000/api/signals/sync', 'https://bot-trading-2.onrender.com/api/signals/sync']
+          : ['https://bot-trading-2.onrender.com/api/signals/sync', 'http://localhost:3000/api/signals/sync'];
 
-        const renderUrl = 'https://bot-trading-2.onrender.com/api/signals/sync';
-        const res = await fetch(renderUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientHistory: localCache })
-        });
+        let res = null;
+        for (const url of urlsToTry) {
+          try {
+            res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clientHistory: localCache })
+            });
+            if (res && res.ok) break;
+          } catch (e) {
+            // Reintentar con siguiente URL
+          }
+        }
 
-        if (res.ok) {
+        if (res && res.ok) {
           const data = await res.json();
           if (data && data.history && Array.isArray(data.history)) {
             setSignalsHistory(prev => {
@@ -132,14 +143,16 @@ export default function App() {
             setMasterConsensusData(data.masterConsensus);
           }
           setRenderServerStatus('connected');
+        } else {
+          setRenderServerStatus('local');
         }
       } catch (err) {
         setRenderServerStatus('local');
       }
     };
 
-    fetchRenderSignals();
-    const interval = setInterval(fetchRenderSignals, 15000);
+    fetchServerSignals();
+    const interval = setInterval(fetchServerSignals, 15000);
     return () => clearInterval(interval);
   }, []);
 

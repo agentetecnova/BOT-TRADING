@@ -90,21 +90,24 @@ export class SignalHistoryService {
     safeA.forEach(processItem);
     safeB.forEach(processItem);
 
+    // Deduplicación por ID y combinación limpia
     const mergedList = Array.from(mapById.values());
-
-    // Deduplicación semántica cercana (evitar spameo de señales casi idénticas en 1 hora)
-    const finalFiltered = [];
     mergedList.sort((a, b) => b.timestampMs - a.timestampMs);
 
+    // Evitar spameo de duplicados idénticos en PENDING en una ventana corta de 2 minutos
+    const finalFiltered = [];
     for (const item of mergedList) {
       const isDuplicateNear = finalFiltered.some(existing => {
+        const itemType = item.type || item.direction;
+        const existingType = existing.type || existing.direction;
+
         const sameStrat = (existing.strategy && item.strategy && existing.strategy === item.strategy) ||
                           (existing.direction && item.direction && existing.direction === item.direction && existing.label === item.label);
-        const sameDir = existing.direction === item.direction;
+        const sameDir = itemType && existingType && itemType === existingType;
         const timeDiff = Math.abs(existing.timestampMs - item.timestampMs);
-        const priceDiffRatio = Math.abs((existing.entry || existing.entryPrice || 0) - (item.entry || item.entryPrice || 0)) / ((existing.entry || existing.entryPrice) || 1);
+        const bothPending = existing.status === 'PENDING' && item.status === 'PENDING';
 
-        return sameStrat && sameDir && timeDiff < 45 * 60 * 1000 && priceDiffRatio < 0.002;
+        return bothPending && sameStrat && sameDir && timeDiff < 2 * 60 * 1000;
       });
 
       if (!isDuplicateNear) {

@@ -12,7 +12,9 @@ export default function BTCDivergenceQuantSheet() {
   const [historyFilter, setHistoryFilter] = useState('ALL');
   const [dateRangeFilter, setDateRangeFilter] = useState('ALL');
 
-  const RENDER_API = 'https://bot-trading-2.onrender.com';
+  const RENDER_API = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+    ? 'http://localhost:3000'
+    : 'https://bot-trading-2.onrender.com';
 
   const updateHistoryFromData = (freshData) => {
     if (!freshData || !freshData.activeSignals) return;
