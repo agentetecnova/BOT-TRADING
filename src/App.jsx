@@ -385,10 +385,13 @@ export default function App() {
       const res6 = technicalAnalysisService.runStrategy6(k15m);
       const res7 = technicalAnalysisService.runStrategy7(k1h);
 
-      // Run Institutional Strategies (Strategies 8, 9, 10)
+      // Run Institutional & Scalping Strategies (Strategies 8, 9, 10, 11, 12, 13)
       const res8 = technicalAnalysisService.runStrategy8(k1h);
       const res9 = technicalAnalysisService.runStrategy9(k4h);
       const res10 = technicalAnalysisService.runStrategy10(k1h);
+      const res11 = technicalAnalysisService.runStrategy11(k5m, 0);
+      const res12 = technicalAnalysisService.runStrategy12(k5m);
+      const res13 = technicalAnalysisService.runStrategy13(k15m);
 
       // Run Strategies 14 to 24
       const res14 = technicalAnalysisService.runStrategy14(k1h);
