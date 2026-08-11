@@ -1,5 +1,21 @@
 [
   {
+    "id": "Estrategia_25_1786477376903",
+    "timestamp": 1786477376903,
+    "strategy": "Estrategia 25",
+    "type": "SHORT",
+    "entry": 63456.73,
+    "sl": 64218.21076,
+    "tp": 61870.31175,
+    "riskPercent": 1.2,
+    "profitPercent": 2.5,
+    "status": "PENDING",
+    "resolvedAt": null,
+    "exitPrice": null,
+    "createdAt": 1786477376903,
+    "timestampMs": 1786477376903
+  },
+  {
     "id": "Estrategia_21_1786464247001",
     "timestamp": 1786464247001,
     "strategy": "Estrategia 21",
@@ -249,9 +265,9 @@
     "tp": 63460.1385,
     "riskPercent": 0.5,
     "profitPercent": 1,
-    "status": "PENDING",
-    "resolvedAt": null,
-    "exitPrice": null,
+    "status": "TP",
+    "resolvedAt": 1786477376902,
+    "exitPrice": 63456.73,
     "createdAt": 1786393135298,
     "timestampMs": 1786393135298
   },
@@ -265,9 +281,9 @@
     "tp": 65083.408160000006,
     "riskPercent": 0.96,
     "profitPercent": 1.53,
-    "status": "PENDING",
-    "resolvedAt": null,
-    "exitPrice": null,
+    "status": "SL",
+    "resolvedAt": 1786477376902,
+    "exitPrice": 63456.73,
     "createdAt": 1786393135295,
     "timestampMs": 1786393135295
   },

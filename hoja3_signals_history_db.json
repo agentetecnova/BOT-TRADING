@@ -1,5 +1,23 @@
 [
   {
+    "id": "div_1786477380337",
+    "type": "BUY",
+    "direction": "LONG",
+    "strategy": "Estrategia 1: Divergencias + Volumen",
+    "label": "Divergencia Alcista 🚀 (1H)",
+    "entry": 63457,
+    "tp1": 63972,
+    "tp2": 64347,
+    "sl": 63105,
+    "rr": 1.46,
+    "volSpikeConfirmed": false,
+    "status": "PENDING",
+    "createdAt": 1786477380372,
+    "timestamp": "11/8/26, 4:43:00 p. m.",
+    "pnlPercent": 0,
+    "timestampMs": 1786477380372
+  },
+  {
     "id": "div_1786111075180",
     "type": "SELL",
     "direction": "SHORT",

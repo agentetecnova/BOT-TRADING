@@ -688,7 +688,7 @@ export default function App() {
               gap: '0.5rem'
             }}
           >
-            🛸 HOJA 1: Bot Multi-Estrategia (13 Algoritmos)
+            🛸 HOJA 1: Bot Multi-Estrategia (25 Algoritmos)
           </button>
           <button
             onClick={() => setSelectedSheet('sheet2')}
@@ -747,462 +747,470 @@ export default function App() {
         </SheetErrorBoundary>
       ) : (
         <>
-          {/* HEADER PANEL */}
-          <header className="glass-panel" style={{ padding: '2rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
-        <div>
-          <h1 style={{ fontSize: '2rem', background: 'linear-gradient(to right, #ffffff, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            🛸 Antigravity BTC Quant Terminal
-          </h1>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', marginTop: '0.25rem' }}>
-            Terminal predictiva especializada y motor de señales en vivo para Bitcoin.
-          </p>
-          
-          {/* Live Liquidations Ticker */}
-          {recentLiqs.length > 0 && (
-            <div style={{ display: 'flex', gap: '0.75rem', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.8rem', color: '#cbd5e1', padding: '0.35rem 0.65rem', background: 'rgba(0,0,0,0.15)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.02)', marginTop: '0.75rem', alignItems: 'center', maxWidth: '100%' }}>
-              <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.05em' }}>⚡ RECIENTES:</span>
-              <div style={{ display: 'flex', gap: '1rem', overflow: 'hidden' }}>
-                {recentLiqs.slice(0, 3).map((l) => (
-                  <span key={l.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <span style={{ color: l.type === 'LONG' ? 'var(--color-down)' : 'var(--color-up)', fontWeight: 700 }}>{l.type}</span>
-                    <span>${Math.round(l.amount).toLocaleString()}</span>
-                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>a ${l.price.toLocaleString()}</span>
+          {/* HEADER PANEL STREAMLINED */}
+          <header className="glass-panel" style={{ padding: '1.5rem 2rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
+            <div>
+              <h1 style={{ fontSize: '1.8rem', background: 'linear-gradient(to right, #ffffff, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                🛸 Antigravity BTC Quant Terminal (25-in-1)
+              </h1>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                Terminal predictiva especializada y motor cuantitativo 24/7 para Bitcoin.
+              </p>
+            </div>
+
+            {/* Live Price & Status Widget */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <div className={`glass-panel ${priceFlash ? `flash-${priceFlash}` : ''}`} style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderRadius: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Precio Spot BTC</div>
+                  <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
+                    {btcPrice ? `$${formatPrice(btcPrice)}` : 'Cargando...'}
+                  </div>
+                </div>
+                {btcChange24h !== null && (
+                  <span style={{ fontSize: '0.85rem', color: btcChange24h >= 0 ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 800, padding: '0.25rem 0.6rem', borderRadius: '6px', background: btcChange24h >= 0 ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)' }}>
+                    {btcChange24h >= 0 ? '▲' : '▼'} {Math.abs(btcChange24h).toFixed(2)}%
                   </span>
-                ))}
+                )}
               </div>
+
+              {/* Render Server status pill */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: renderServerStatus === 'connected' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', padding: '0.6rem 1rem', borderRadius: '12px', border: `1px solid ${renderServerStatus === 'connected' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`, fontSize: '0.8rem', fontWeight: 700, color: renderServerStatus === 'connected' ? '#10b981' : '#f59e0b' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: renderServerStatus === 'connected' ? '#10b981' : '#f59e0b', display: 'inline-block' }}></span>
+                {renderServerStatus === 'connected' ? '🟢 Motor 24/7 Activo' : '🟡 Servidor Sincronizando...'}
+              </div>
+            </div>
+          </header>
+
+          {/* ANALYSIS ERROR BLOCK */}
+          {analysisError && (
+            <div style={{ padding: '1rem', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', fontSize: '0.9rem' }}>
+              ⚠️ {analysisError}
             </div>
           )}
-        </div>
 
-        {/* Connection status and live price overview */}
-        <div className="header-widgets">
-          
-          {/* Live Price Widget */}
-          <div className={`glass-panel header-widget-item ${priceFlash ? `flash-${priceFlash}` : ''}`} style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.3s ease' }}>
-            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Precio BTC/USDT</span>
-            <span className="font-mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: '0.15rem 0' }}>
-              {btcPrice ? `$${formatPrice(btcPrice)}` : 'Cargando...'}
-            </span>
-            {btcChange24h !== null && (
-              <span style={{ fontSize: '0.8rem', color: btcChange24h >= 0 ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 700 }}>
-                {btcChange24h >= 0 ? '▲' : '▼'} {Math.abs(btcChange24h).toFixed(2)}%
-              </span>
-            )}
-          </div>
-
-          {/* CVD (5m) Widget */}
-          <div className="glass-panel header-widget-item" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>CVD Delta (5m)</span>
-            <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: cvd5m >= 0 ? 'var(--color-up)' : 'var(--color-down)', margin: '0.15rem 0' }}>
-              {cvd5m >= 0 ? '+' : ''}{cvd5m.toLocaleString('en-US')}
-            </span>
-            <span style={{ fontSize: '0.75rem', color: cvdStatus.color, fontWeight: 700 }}>{cvdStatus.label}</span>
-            <span style={{ fontSize: '0.82rem', color: '#cbd5e1', marginTop: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem', lineHeight: '1.35' }}>
-              Mide la diferencia acumulada entre compras y ventas a mercado. Una divergencia alcista (CVD sube pero precio no) anticipa rebotes; una divergencia bajista (CVD baja pero precio no) anticipa correcciones.
-            </span>
-          </div>
-
-          {/* Liquidations (5m) Widget */}
-          <div className="glass-panel header-widget-item" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Liquidado (5m)</span>
-            
-            <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: '0.15rem 0' }}>
-              <span style={{ color: 'var(--color-down)' }}>${Math.round(liqStats5m.longLiqs / 1000)}k L</span>
-              {' / '}
-              <span style={{ color: 'var(--color-up)' }}>${Math.round(liqStats5m.shortLiqs / 1000)}k S</span>
-            </span>
-
-            {futuresStatus === 'failed' ? (
-              <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 700, display: 'block', margin: '0.2rem 0' }}>
-                ⚠️ ISP Bloqueado (Simulado)
-              </span>
-            ) : (
-              <span style={{ fontSize: '0.65rem', color: 'var(--color-up)', fontWeight: 700, display: 'block', margin: '0.2rem 0' }}>
-                🟢 Conexión Directa WS
-              </span>
-            )}
-
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.4rem', lineHeight: '1.2' }}>
-              Volumen de traders liquidados. Liquidar LONGs frena caídas; liquidar SHORTs impulsa subidas.
-            </span>
-          </div>
-
-          {/* Connection status dot */}
-          <div className="header-widget-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '0.75rem 1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--glass-border)', height: '100%' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block', background: connectionStatus === 'connected' ? 'var(--color-up)' : connectionStatus === 'connecting' ? '#eab308' : 'var(--color-down)' }}></span>
-            <div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Binance WS</div>
-              <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{connectionStatus === 'connected' ? 'OK' : connectionStatus === 'connecting' ? 'SYNC' : 'DOWN'}</div>
+          {/* VOLATILITY SQUEEZE WARNING BANNER */}
+          {strat4Data && strat4Data.isSqueeze && (
+            <div style={{ padding: '1rem', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              🔥 COMPRESIÓN DE VOLATILIDAD (Bollinger Squeeze): Ancho de bandas {(strat4Data.bbw * 100).toFixed(2)}%. Gran movimiento inminente en los próximos días. Filtro macro semanal: {strat4Data.pUp > strat4Data.pDown ? 'ALCISTA (LONG)' : 'BAJISTA (SHORT)'}.
             </div>
-          </div>
+          )}
 
-        </div>
-      </header>
-
-      {/* ANALYSIS ERROR BLOCK */}
-      {analysisError && (
-        <div style={{ padding: '1rem', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', fontSize: '0.9rem' }}>
-          ⚠️ {analysisError}
-        </div>
-      )}
-
-      {/* VOLATILITY SQUEEZE WARNING BANNER */}
-      {strat4Data && strat4Data.isSqueeze && (
-        <div style={{ padding: '1rem', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#f59e0b', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          🔥 COMPRESIÓN DE VOLATILIDAD (Bollinger Squeeze): Ancho de bandas {(strat4Data.bbw * 100).toFixed(2)}%. Gran movimiento inminente en los próximos días. Filtro macro semanal: {strat4Data.pUp > strat4Data.pDown ? 'ALCISTA (LONG)' : 'BAJISTA (SHORT)'}.
-        </div>
-      )}
-
-      {/* ⭐ PANEL DE RESUMEN: SEÑAL MAESTRA POR CONSENSO (INDEPENDIENTE) */}
-      <div className="glass-panel" style={{
-        padding: '1.25rem 1.5rem',
-        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.65) 100%)',
-        border: '1px solid rgba(245, 158, 11, 0.25)',
-        borderRadius: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '1.2rem' }}>⭐</span>
-              <h2 style={{ fontSize: '1.15rem', color: '#fff', margin: 0, fontWeight: 700 }}>
-                Resumen de Consenso Institucional & Señal Maestra
-              </h2>
-              <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
-                Módulo Independiente
-              </span>
-            </div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
-              Evaluación agregada de confluencia entre las 13 estrategias sin alterar los algoritmos individuales.
-            </p>
-          </div>
-
-          {/* Render Server status pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: renderServerStatus === 'connected' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', padding: '0.35rem 0.75rem', borderRadius: '20px', border: `1px solid ${renderServerStatus === 'connected' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`, fontSize: '0.75rem', fontWeight: 600, color: renderServerStatus === 'connected' ? '#10b981' : '#f59e0b' }}>
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: renderServerStatus === 'connected' ? '#10b981' : '#f59e0b', display: 'inline-block' }}></span>
-            {renderServerStatus === 'connected' ? '🟢 Servidor 24/7 Conectado (Render)' : '🟡 Servidor 24/7 Sincronizando...'}
-          </div>
-        </div>
-
-        {masterConsensusData ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'center' }}>
-            {/* Consenso Direccional */}
-            <div style={{ padding: '0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-              <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Sesgo Global Agregado</span>
-              <div style={{ fontSize: '1rem', fontWeight: 800, marginTop: '0.2rem', color: masterConsensusData.masterSignal ? (masterConsensusData.masterSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)') : '#cbd5e1' }}>
-                {masterConsensusData.bias}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
-                Probabilidad promedio: <strong style={{ color: '#fff' }}>{masterConsensusData.avgPUp}% Alcista</strong> / {masterConsensusData.avgPDown}% Bajista
+          {/* ⭐ PANEL DE RESUMEN: SEÑAL MAESTRA POR CONSENSO (25 ESTRATEGIAS) */}
+          <div className="glass-panel" style={{
+            padding: '1.25rem 1.5rem',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.65) 100%)',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            borderRadius: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.2rem' }}>⭐</span>
+                  <h2 style={{ fontSize: '1.15rem', color: '#fff', margin: 0, fontWeight: 700 }}>
+                    Resumen de Consenso Institucional & Señal Maestra (25 Algoritmos)
+                  </h2>
+                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
+                    Quant Ensemble
+                  </span>
+                </div>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                  Evaluación agregada de confluencia entre las 25 estrategias cuantitativas en tiempo real.
+                </p>
               </div>
             </div>
 
-            {/* Votación de Estrategias */}
-            <div style={{ padding: '0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-              <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Votación de Estrategias</span>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.3rem' }}>
-                <span style={{ color: 'var(--color-up)', fontWeight: 800, fontSize: '1.1rem' }}>
-                  🟢 {masterConsensusData.longVotes} LONG
-                </span>
-                <span style={{ color: 'var(--color-down)', fontWeight: 800, fontSize: '1.1rem' }}>
-                  🔴 {masterConsensusData.shortVotes} SHORT
-                </span>
-              </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
-                Convicción: <strong style={{ color: '#f59e0b' }}>{masterConsensusData.conviction}</strong>
-              </div>
-            </div>
-
-            {/* Estado de la Señal Maestra */}
-            <div style={{ padding: '0.9rem', background: masterConsensusData.hasConsensus ? (masterConsensusData.masterSignal && masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.05)' : 'rgba(255, 23, 68, 0.05)') : 'rgba(255,255,255,0.015)', border: `1px solid ${masterConsensusData.hasConsensus ? (masterConsensusData.masterSignal && masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)') : 'rgba(255,255,255,0.03)'}`, borderRadius: '12px' }}>
-              <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Señal Maestra de Alta Confluencia</span>
-              {masterConsensusData.hasConsensus && masterConsensusData.masterSignal ? (
-                <div style={{ marginTop: '0.2rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ padding: '0.2rem 0.5rem', borderRadius: '6px', background: masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)', color: masterConsensusData.masterSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 800, fontSize: '0.9rem' }}>
-                      {masterConsensusData.masterSignal.type} MASTER
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
-                      {masterConsensusData.masterSignal.agreeingCount} Estrategias en Confluencia
-                    </span>
+            {masterConsensusData ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'center' }}>
+                {/* Consenso Direccional */}
+                <div style={{ padding: '0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Sesgo Global Agregado</span>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, marginTop: '0.2rem', color: masterConsensusData.masterSignal ? (masterConsensusData.masterSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)') : '#cbd5e1' }}>
+                    {masterConsensusData.bias}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.3rem' }}>
-                    Alineadas: {masterConsensusData.masterSignal.agreeingStrategies.join(', ')}
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                    Probabilidad promedio: <strong style={{ color: '#fff' }}>{masterConsensusData.avgPUp}% Alcista</strong> / {masterConsensusData.avgPDown}% Bajista
                   </div>
                 </div>
-              ) : (
-                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.3rem' }}>
-                  ⚪ Esperando confluencia de 3+ estrategias en 2+ familias distintas...
+
+                {/* Votación de Estrategias */}
+                <div style={{ padding: '0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Votación de Estrategias</span>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.3rem' }}>
+                    <span style={{ color: 'var(--color-up)', fontWeight: 800, fontSize: '1.1rem' }}>
+                      🟢 {masterConsensusData.longVotes} LONG
+                    </span>
+                    <span style={{ color: 'var(--color-down)', fontWeight: 800, fontSize: '1.1rem' }}>
+                      🔴 {masterConsensusData.shortVotes} SHORT
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
+                    Convicción: <strong style={{ color: '#f59e0b' }}>{masterConsensusData.conviction}</strong>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Cargando análisis de consenso...</div>
-        )}
-      </div>
 
-      {/* TAB SYSTEM NAV SELECTOR (Pro Command Dashboard) */}
-      <div className="tab-switcher" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-        <button 
-          onClick={() => setActiveTab('ranking')}
-          className="tab-button"
-          style={{
-            background: activeTab === 'ranking' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
-            border: `1px solid ${activeTab === 'ranking' ? '#f59e0b' : 'rgba(255,255,255,0.05)'}`,
-            color: activeTab === 'ranking' ? '#fff' : 'var(--color-text-muted)',
-            padding: '0.65rem 1.25rem',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: 700,
-            fontSize: '0.88rem',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          🏆 Ranking 25 Estrategias
-        </button>
-        <button 
-          onClick={() => setActiveTab('core')}
-          className="tab-button"
-          style={{
-            background: activeTab === 'core' ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
-            border: `1px solid ${activeTab === 'core' ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
-            color: activeTab === 'core' ? '#fff' : 'var(--color-text-muted)',
-            padding: '0.65rem 1.25rem',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: 700,
-            fontSize: '0.88rem',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          🎯 Consenso & Modelos Activos (25-in-1)
-        </button>
-        <button 
-          onClick={() => setActiveTab('history')}
-          className="tab-button"
-          style={{
-            background: activeTab === 'history' ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
-            border: `1px solid ${activeTab === 'history' ? '#a855f7' : 'rgba(255,255,255,0.05)'}`,
-            color: activeTab === 'history' ? '#fff' : 'var(--color-text-muted)',
-            padding: '0.65rem 1.25rem',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: 700,
-            fontSize: '0.88rem',
-            transition: 'all 0.3s ease'
-          }}
-        >
-          📜 Historial Completo ({signalsHistory.length})
-        </button>
-      </div>
-
-      {activeTab === 'ranking' ? (
-        <StrategyRankingComponent 
-          signalsHistory={signalsHistory} 
-          onSelectStrategy={(stratKey) => {
-            setSelectedStratFilter(stratKey);
-            setActiveTab('history');
-          }} 
-        />
-      ) : activeTab === 'core' ? (
-        <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {/* Section Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
-            <div>
-              <h2 style={{ fontSize: '1.4rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                🧠 25 Modelos Predictivos Cuantitativos BTC en Tiempo Real
-              </h2>
-              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-                25 estrategias profesionales analizando simultáneamente el flujo, momentum y volatilidad de Bitcoin.
-              </p>
-            </div>
-            {analysisLoading ? (
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className="pulse-yellow bg-yellow-500" style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }}></span>
-                Analizando velas...
-              </span>
+                {/* Estado de la Señal Maestra */}
+                <div style={{ padding: '0.9rem', background: masterConsensusData.hasConsensus ? (masterConsensusData.masterSignal && masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.05)' : 'rgba(255, 23, 68, 0.05)') : 'rgba(255,255,255,0.015)', border: `1px solid ${masterConsensusData.hasConsensus ? (masterConsensusData.masterSignal && masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)') : 'rgba(255,255,255,0.03)'}`, borderRadius: '12px' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Señal Maestra de Alta Confluencia</span>
+                  {masterConsensusData.hasConsensus && masterConsensusData.masterSignal ? (
+                    <div style={{ marginTop: '0.2rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ padding: '0.2rem 0.5rem', borderRadius: '6px', background: masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)', color: masterConsensusData.masterSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 800, fontSize: '0.9rem' }}>
+                          {masterConsensusData.masterSignal.type} MASTER
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
+                          {masterConsensusData.masterSignal.agreeingCount} Estrategias en Confluencia
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.3rem' }}>
+                        Alineadas: {masterConsensusData.masterSignal.agreeingStrategies.join(', ')}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.3rem' }}>
+                      ⚪ Esperando confluencia de 3+ estrategias en 2+ familias distintas...
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-up)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className="pulse-green bg-green-500" style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }}></span>
-                25 Algoritmos Activos 24/7
-              </span>
+              <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Cargando análisis de consenso...</div>
             )}
           </div>
 
-          <StrategyGridComponent 
-            allAnalysisMap={allAnalysisMap} 
-            signalsHistory={signalsHistory} 
-            analysisLoading={analysisLoading} 
-            formatPrice={formatPrice} 
-          />
-        </section>
-      ) : null}
-
-      {/* HISTORIAL GENERAL DE LAS 25 ESTRATEGIAS (activeTab === 'history') */}
-      {activeTab === 'history' ? (
-        <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                📜 Historial Global de Señales & Efectividad (25 Estrategias)
-              </h2>
-              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-                Registro histórico completo de señales autogestionadas por el motor cuantitativo de Bitcoin.
-              </p>
-            </div>
-            
+          {/* TAB SYSTEM NAV SELECTOR */}
+          <div className="tab-switcher" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
             <button 
-              onClick={handleClearHistory}
-              style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
-              onMouseEnter={e => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
-              onMouseLeave={e => e.target.style.background = 'rgba(239, 68, 68, 0.05)'}
+              onClick={() => setActiveTab('core')}
+              className="tab-button"
+              style={{
+                background: activeTab === 'core' ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${activeTab === 'core' ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                color: activeTab === 'core' ? '#fff' : 'var(--color-text-muted)',
+                padding: '0.65rem 1.25rem',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                transition: 'all 0.3s ease'
+              }}
             >
-              🗑️ Limpiar Historial
+              🎯 25 Modelos Predictivos
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('ranking')}
+              className="tab-button"
+              style={{
+                background: activeTab === 'ranking' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${activeTab === 'ranking' ? '#f59e0b' : 'rgba(255,255,255,0.05)'}`,
+                color: activeTab === 'ranking' ? '#fff' : 'var(--color-text-muted)',
+                padding: '0.65rem 1.25rem',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              🏆 Ranking de Efectividad (% Win Rate)
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('history')}
+              className="tab-button"
+              style={{
+                background: activeTab === 'history' ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${activeTab === 'history' ? '#a855f7' : 'rgba(255,255,255,0.05)'}`,
+                color: activeTab === 'history' ? '#fff' : 'var(--color-text-muted)',
+                padding: '0.65rem 1.25rem',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              📜 Historial de Señales ({signalsHistory.length})
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('telemetry')}
+              className="tab-button"
+              style={{
+                background: activeTab === 'telemetry' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${activeTab === 'telemetry' ? '#10b981' : 'rgba(255,255,255,0.05)'}`,
+                color: activeTab === 'telemetry' ? '#fff' : 'var(--color-text-muted)',
+                padding: '0.65rem 1.25rem',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              📡 Telemetría & Diagnóstico
             </button>
           </div>
 
-          {/* Date & Strategy Filter Bar */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '0.5rem' }}>
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: '0.3rem' }}>📅 Rango Fecha:</span>
-              {[
-                { key: 'ALL', label: '🌐 Historial Completo' },
-                { key: 'TODAY', label: '☀️ Hoy' },
-                { key: '7D', label: '📆 Últimos 7 Días' },
-                { key: '30D', label: '📊 Últimos 30 Días' }
-              ].map(df => (
-                <button
-                  key={df.key}
-                  onClick={() => setDateRangeFilter(df.key)}
-                  style={{
-                    padding: '0.3rem 0.65rem',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    background: dateRangeFilter === df.key ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${dateRangeFilter === df.key ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
-                    color: dateRangeFilter === df.key ? '#fff' : 'var(--color-text-muted)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {df.label}
-                </button>
-              ))}
-            </div>
+          {activeTab === 'ranking' ? (
+            <StrategyRankingComponent 
+              signalsHistory={signalsHistory} 
+              onSelectStrategy={(stratKey) => {
+                setSelectedStratFilter(stratKey);
+                setActiveTab('history');
+              }} 
+            />
+          ) : activeTab === 'core' ? (
+            <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Section Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.4rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    🧠 25 Modelos Predictivos Cuantitativos BTC en Tiempo Real
+                  </h2>
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                    25 estrategias profesionales analizando simultáneamente el flujo, momentum y volatilidad de Bitcoin.
+                  </p>
+                </div>
+                {analysisLoading ? (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="pulse-yellow bg-yellow-500" style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }}></span>
+                    Analizando velas...
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-up)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="pulse-green bg-green-500" style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }}></span>
+                    25 Algoritmos Activos 24/7
+                  </span>
+                )}
+              </div>
 
-            <div className="strategy-filter-bar" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Estrategia:</span>
-              {['ALL', ...Array.from({ length: 25 }, (_, i) => `Estrategia ${i + 1}`)].map((strat) => (
-                <button
-                  key={strat}
-                  onClick={() => setSelectedStratFilter(strat)}
-                  className="strategy-filter-btn"
-                  style={{
-                    padding: '0.3rem 0.6rem',
-                    borderRadius: '6px',
-                    fontSize: '0.73rem',
-                    fontWeight: 600,
-                    background: selectedStratFilter === strat ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${selectedStratFilter === strat ? '#f59e0b' : 'rgba(255,255,255,0.06)'}`,
-                    color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
+              <StrategyGridComponent 
+                allAnalysisMap={allAnalysisMap} 
+                signalsHistory={signalsHistory} 
+                analysisLoading={analysisLoading} 
+                formatPrice={formatPrice} 
+              />
+            </section>
+          ) : activeTab === 'history' ? (
+            <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    📜 Historial Global de Señales & Efectividad (25 Estrategias)
+                  </h2>
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                    Registro histórico completo de señales autogestionadas por el motor cuantitativo de Bitcoin.
+                  </p>
+                </div>
+                
+                <button 
+                  onClick={handleClearHistory}
+                  style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
+                  onMouseEnter={e => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
+                  onMouseLeave={e => e.target.style.background = 'rgba(239, 68, 68, 0.05)'}
                 >
-                  {strat === 'ALL' ? 'Todas (E1-E25)' : strat.replace('Estrategia ', 'E')}
+                  🗑️ Limpiar Historial
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Signals History Table */}
-          <div className="table-responsive">
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-text-muted)' }}>
-                  <th style={{ padding: '0.75rem' }}>Fecha / Hora</th>
-                  <th style={{ padding: '0.75rem' }}>Estrategia</th>
-                  <th style={{ padding: '0.75rem' }}>Operación</th>
-                  <th style={{ padding: '0.75rem' }}>Entrada</th>
-                  <th style={{ padding: '0.75rem' }}>Stop Loss</th>
-                  <th style={{ padding: '0.75rem' }}>Take Profit</th>
-                  <th style={{ padding: '0.75rem' }}>Resultado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
-                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
-                  .slice(0, 1000)
-                  .map((sig) => {
-                    const d = new Date(sig.timestamp);
-                    const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    return (
-                      <tr key={sig.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#cbd5e1' }}>
-                        <td style={{ padding: '0.75rem' }} className="font-mono">{dateStr}</td>
-                        <td style={{ padding: '0.75rem', fontWeight: 600 }}>{sig.strategy}</td>
-                        <td style={{ padding: '0.75rem' }}>
-                          <span style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: sig.type === 'LONG' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)', color: sig.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 700, fontSize: '0.75rem' }}>
-                            {sig.type}
-                          </span>
-                        </td>
-                        <td style={{ padding: '0.75rem' }} className="font-mono">${formatPrice(sig.entry)}</td>
-                        <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
-                        <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
-                        <td style={{ padding: '0.75rem' }}>
-                          {renderSignalStatusBadge(sig)}
+              {/* Date & Strategy Filter Bar */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: '0.3rem' }}>📅 Rango Fecha:</span>
+                  {[
+                    { key: 'ALL', label: '🌐 Historial Completo' },
+                    { key: 'TODAY', label: '☀️ Hoy' },
+                    { key: '7D', label: '📆 Últimos 7 Días' },
+                    { key: '30D', label: '📊 Últimos 30 Días' }
+                  ].map(df => (
+                    <button
+                      key={df.key}
+                      onClick={() => setDateRangeFilter(df.key)}
+                      style={{
+                        padding: '0.3rem 0.65rem',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        background: dateRangeFilter === df.key ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${dateRangeFilter === df.key ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                        color: dateRangeFilter === df.key ? '#fff' : 'var(--color-text-muted)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {df.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="strategy-filter-bar" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Estrategia:</span>
+                  {['ALL', ...Array.from({ length: 25 }, (_, i) => `Estrategia ${i + 1}`)].map((strat) => (
+                    <button
+                      key={strat}
+                      onClick={() => setSelectedStratFilter(strat)}
+                      className="strategy-filter-btn"
+                      style={{
+                        padding: '0.3rem 0.6rem',
+                        borderRadius: '6px',
+                        fontSize: '0.73rem',
+                        fontWeight: 600,
+                        background: selectedStratFilter === strat ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${selectedStratFilter === strat ? '#f59e0b' : 'rgba(255,255,255,0.06)'}`,
+                        color: selectedStratFilter === strat ? '#fff' : 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {strat === 'ALL' ? 'Todas (E1-E25)' : strat.replace('Estrategia ', 'E')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Signals History Table */}
+              <div className="table-responsive">
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-text-muted)' }}>
+                      <th style={{ padding: '0.75rem' }}>Fecha / Hora</th>
+                      <th style={{ padding: '0.75rem' }}>Estrategia</th>
+                      <th style={{ padding: '0.75rem' }}>Operación</th>
+                      <th style={{ padding: '0.75rem' }}>Entrada</th>
+                      <th style={{ padding: '0.75rem' }}>Stop Loss</th>
+                      <th style={{ padding: '0.75rem' }}>Take Profit</th>
+                      <th style={{ padding: '0.75rem' }}>Resultado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
+                      .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter)
+                      .slice(0, 1000)
+                      .map((sig) => {
+                        const d = new Date(sig.timestamp);
+                        const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        return (
+                          <tr key={sig.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#cbd5e1' }}>
+                            <td style={{ padding: '0.75rem' }} className="font-mono">{dateStr}</td>
+                            <td style={{ padding: '0.75rem', fontWeight: 600 }}>{sig.strategy}</td>
+                            <td style={{ padding: '0.75rem' }}>
+                              <span style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: sig.type === 'LONG' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)', color: sig.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 700, fontSize: '0.75rem' }}>
+                                {sig.type}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.75rem' }} className="font-mono">${formatPrice(sig.entry)}</td>
+                            <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
+                            <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
+                            <td style={{ padding: '0.75rem' }}>
+                              {renderSignalStatusBadge(sig)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
+                      .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter).length === 0 && (
+                      <tr>
+                        <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                          Historial vacío para la selección actual. Esperando la generación de señales...
                         </td>
                       </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : activeTab === 'telemetry' ? (
+            <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
+                <h2 style={{ fontSize: '1.4rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  📡 Telemetría Avanzada & Diagnóstico de Red
+                </h2>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                  Datos complementarios del mercado (Order Flow CVD, Liquidaciones y Consola de Sync) separados del panel principal de señales.
+                </p>
+              </div>
+
+              {/* Grid de Métricas de Mercado */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                
+                {/* CVD Delta (5m) Widget */}
+                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>CVD Delta Acumulado (5m)</span>
+                  <span className="font-mono" style={{ fontSize: '1.6rem', fontWeight: 800, color: cvd5m >= 0 ? 'var(--color-up)' : 'var(--color-down)' }}>
+                    {cvd5m >= 0 ? '+' : ''}{cvd5m.toLocaleString('en-US')}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: cvdStatus.color, fontWeight: 700 }}>{cvdStatus.label}</span>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', lineHeight: '1.4' }}>
+                    Diferencia entre ordenes agresivas de compra y venta. Útil para identificar divergencias de volumen.
+                  </p>
+                </div>
+
+                {/* Liquidations (5m) Widget */}
+                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Volumen de Liquidados (5m)</span>
+                  <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>
+                    <span style={{ color: 'var(--color-down)' }}>${Math.round(liqStats5m.longLiqs / 1000)}k L</span>
+                    {' / '}
+                    <span style={{ color: 'var(--color-up)' }}>${Math.round(liqStats5m.shortLiqs / 1000)}k S</span>
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: futuresStatus === 'failed' ? '#f59e0b' : 'var(--color-up)', fontWeight: 700 }}>
+                    {futuresStatus === 'failed' ? '⚠️ WebSocket Simulado' : '🟢 WebSocket Directo Binance'}
+                  </span>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', lineHeight: '1.4' }}>
+                    Registra barridas de liquidez de posicionado apalancado en tiempo real.
+                  </p>
+                </div>
+
+                {/* Estado de Conexión WS */}
+                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Conexión Binance WS</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: connectionStatus === 'connected' ? 'var(--color-up)' : connectionStatus === 'connecting' ? '#eab308' : 'var(--color-down)' }}></span>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>
+                      {connectionStatus === 'connected' ? 'Conectado 24/7' : connectionStatus === 'connecting' ? 'Reconectando...' : 'Desconectado'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', lineHeight: '1.4' }}>
+                    Flujo de ticks en tiempo real de Binance Spot y Futures.
+                  </p>
+                </div>
+
+              </div>
+
+              {/* SYNCHRONIZATION LOGGER TERMINAL */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '260px' }}>
+                <h3 style={{ fontSize: '1.1rem', color: '#fff', margin: 0 }}>
+                  🖥️ Registro de Sincronización y Acciones Internas
+                </h3>
+                <div ref={consoleRef} style={{ flex: 1, background: '#030408', borderRadius: '10px', padding: '1rem', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.78rem', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '250px' }}>
+                  {logs.map((log, index) => {
+                    let color = 'var(--color-text-muted)';
+                    if (log.type === 'up') color = 'var(--color-up)';
+                    if (log.type === 'down') color = 'var(--color-down)';
+                    if (log.source === 'Sistema') color = '#9333ea';
+                    if (log.source === 'Red') color = '#2563eb';
+
+                    return (
+                      <div key={index} style={{ lineBreak: 'anywhere' }}>
+                        <span style={{ color: 'rgba(255,255,255,0.2)' }}>[{log.timestamp}]</span>{' '}
+                        <span style={{ color: log.source === 'Binance WS' ? '#f0b90b' : log.source === 'Algoritmo' ? '#f59e0b' : '#818cf8', fontWeight: 600 }}>[{log.source}]</span>{' '}
+                        <span style={{ color }}>{log.message}</span>
+                      </div>
                     );
                   })}
-                {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
-                  .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter).length === 0 && (
-                  <tr>
-                    <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                      Historial vacío para la selección actual. Esperando la generación de señales...
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      {/* SYNCHRONIZATION LOGGER TERMINAL */}
-      <section className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', minHeight: '260px' }}>
-        <h3 style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '0.5rem' }}>
-          🖥️ Registro de Sincronización y Acciones
-        </h3>
-        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
-          Consola interna de eventos del bot de trading cuantitativo.
-        </p>
-
-        <div ref={consoleRef} style={{ flex: 1, background: '#030408', borderRadius: '10px', padding: '0.75rem', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.75rem', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.02)', display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '200px' }}>
-          {logs.map((log, index) => {
-            let color = 'var(--color-text-muted)';
-            if (log.type === 'up') color = 'var(--color-up)';
-            if (log.type === 'down') color = 'var(--color-down)';
-            if (log.source === 'Sistema') color = '#9333ea';
-            if (log.source === 'Red') color = '#2563eb';
-
-            return (
-              <div key={index} style={{ lineBreak: 'anywhere' }}>
-                <span style={{ color: 'rgba(255,255,255,0.2)' }}>[{log.timestamp}]</span>{' '}
-                <span style={{ color: log.source === 'Binance WS' ? '#f0b90b' : log.source === 'Algoritmo' ? '#f59e0b' : '#818cf8', fontWeight: 600 }}>[{log.source}]</span>{' '}
-                <span style={{ color }}>{log.message}</span>
+                </div>
               </div>
-            );
-          })}
-        </div>
-      </section>
+            </section>
+          ) : null}
 
-      <footer style={{ marginTop: 'auto', padding: '1.5rem 0 0', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-        <div>Antigravity BTC Quant Terminal v2.0.0</div>
-        <div>Análisis fractal & Motor de efectividad local</div>
-      </footer>
+          <footer style={{ marginTop: 'auto', padding: '1.5rem 0 0', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+            <div>Antigravity BTC Quant Terminal v2.0.0</div>
+            <div>Motor Cuantitativo 24/7 de Efectividad Bitcoin</div>
+          </footer>
         </>
       )}
     </div>
