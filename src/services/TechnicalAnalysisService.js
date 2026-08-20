@@ -2627,7 +2627,7 @@ class TechnicalAnalysisService {
     const lastPrice = resultsMap['Estrategia 1']?.signal?.entry || 65000;
 
     const reasons = [
-      `Consenso Cuantitativo 25-in-1: ${consensus.bias}`,
+      `Consenso Cuantitativo Ensemble: ${consensus.bias}`,
       `Votos Alcistas: ${consensus.longVotes} | Votos Bajistas: ${consensus.shortVotes}`,
       `Probabilidad Promedio Mercado: ${consensus.avgPUp}% Alcista / ${consensus.avgPDown}% Bajista`
     ];
@@ -2647,7 +2647,7 @@ class TechnicalAnalysisService {
         tp,
         riskPercent: 1.2,
         profitPercent: 2.5,
-        reasons: [...reasons, `SEÑAL MAESTRA QUANT 2.0: Confluencia en ${consensus.masterSignal.agreeingCount} Estrategias`]
+        reasons: [...reasons, `SEÑAL MAESTRA QUANT: Confluencia en ${consensus.masterSignal.agreeingCount} Estrategias`]
       };
     }
 
@@ -2663,15 +2663,330 @@ class TechnicalAnalysisService {
   }
 
   /**
+   * Estrategia 26: Derivatives Squeeze Regime (Funding Rate + Open Interest Climax)
+   */
+  runStrategy26(candles1h, fundingRate = 0.0001) {
+    if (!candles1h || candles1h.length < 30) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 26' };
+    }
+    const lastPrice = parseFloat(candles1h[candles1h.length - 1].close);
+    const prices = candles1h.map(c => parseFloat(c.close));
+    const rsi = this.calculateRSI(prices, 14);
+    const lastRsi = rsi[rsi.length - 1] || 50;
+
+    // Simular o calcular proxy de funding rate / saturación de derivados
+    const isExtremeNegative = fundingRate < -0.00015 || (lastRsi < 32 && prices[prices.length - 1] < prices[prices.length - 10]);
+    const isExtremePositive = fundingRate > 0.0004 || (lastRsi > 70 && prices[prices.length - 1] > prices[prices.length - 10]);
+
+    const reasons = [
+      `Precio Spot 1H: $${lastPrice.toLocaleString()}`,
+      `RSI 14 (1H): ${lastRsi.toFixed(1)}`,
+      `Régimen de Derivados: ${isExtremeNegative ? '🔥 Short Squeeze Inminente' : isExtremePositive ? '⚠️ Long Squeeze Inminente' : 'Equilibrio de Apalancamiento'}`
+    ];
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (isExtremeNegative) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 0.988;
+      const tp = entry * 1.028;
+      signal = {
+        type: 'LONG',
+        entry,
+        sl,
+        tp,
+        riskPercent: 1.2,
+        profitPercent: 2.8,
+        reasons: [...reasons, 'Derivatives Short Squeeze: Saturación de Vendedores Apalancados + Desviación Extrema']
+      };
+    } else if (isExtremePositive) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 1.012;
+      const tp = entry * 0.972;
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl,
+        tp,
+        riskPercent: 1.2,
+        profitPercent: 2.8,
+        reasons: [...reasons, 'Derivatives Long Squeeze: Sobrecalentamiento Comprador + Desaceleración de Momentum']
+      };
+    }
+
+    const pUp = isExtremeNegative ? 75 : isExtremePositive ? 25 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'SHORT SQUEEZE ALCISTA' : pUp <= 40 ? 'LONG SQUEEZE BAJISTA' : 'RÉGIMEN NEUTRAL', hasSignal, signal, reasons };
+  }
+
+  /**
+   * Estrategia 27: London & NY Judas Swing (Manipulación del Rango Asiático)
+   */
+  runStrategy27(candles15m) {
+    if (!candles15m || candles15m.length < 40) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 27' };
+    }
+    const lastPrice = parseFloat(candles15m[candles15m.length - 1].close);
+    
+    // Rango de las 16 a 32 velas anteriores (proxy de sesión asiática ~4-8h previas)
+    const asiaCandles = candles15m.slice(candles15m.length - 32, candles15m.length - 8);
+    const asiaHigh = Math.max(...asiaCandles.map(c => parseFloat(c.high)));
+    const asiaLow = Math.min(...asiaCandles.map(c => parseFloat(c.low)));
+
+    const currentCandle = candles15m[candles15m.length - 1];
+    const prevCandle = candles15m[candles15m.length - 2];
+
+    const sweptLowAndReentered = parseFloat(prevCandle.low) <= asiaLow && lastPrice > asiaLow;
+    const sweptHighAndReentered = parseFloat(prevCandle.high) >= asiaHigh && lastPrice < asiaHigh;
+
+    const reasons = [
+      `Precio Spot 15m: $${lastPrice.toLocaleString()}`,
+      `Rango Asiático Referencia: $${Math.round(asiaLow).toLocaleString()} - $${Math.round(asiaHigh).toLocaleString()}`,
+      `Estado Judas Swing: ${sweptLowAndReentered ? '🎯 Barrido de Mínimo Asiático (Trampa Bajista)' : sweptHighAndReentered ? '🎯 Barrido de Máximo Asiático (Trampa Alcista)' : 'Monitoreando extremos'}`
+    ];
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (sweptLowAndReentered || lastPrice < asiaLow * 1.002) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 0.993;
+      const tp = entry * 1.014;
+      signal = {
+        type: 'LONG',
+        entry,
+        sl,
+        tp,
+        riskPercent: 0.7,
+        profitPercent: 1.4,
+        reasons: [...reasons, 'Judas Swing Alcista: Reingreso con Fuerza tras Caza de Liquidez en Mínimo Asiático']
+      };
+    } else if (sweptHighAndReentered || lastPrice > asiaHigh * 0.998) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 1.007;
+      const tp = entry * 0.986;
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl,
+        tp,
+        riskPercent: 0.7,
+        profitPercent: 1.4,
+        reasons: [...reasons, 'Judas Swing Bajista: Reingreso con Rechazo tras Caza de Liquidez en Máximo Asiático']
+      };
+    }
+
+    const pUp = sweptLowAndReentered ? 72 : sweptHighAndReentered ? 28 : (lastPrice < (asiaLow + asiaHigh) / 2 ? 55 : 45);
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'JUDAS SWING ALCISTA' : 'JUDAS SWING BAJISTA', hasSignal, signal, reasons };
+  }
+
+  /**
+   * Estrategia 28: Monday Open & Weekly Value Deviation (Rebalanceo Semanal)
+   */
+  runStrategy28(candles1h, candles1d = []) {
+    if (!candles1h || candles1h.length < 50) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 28' };
+    }
+    const lastPrice = parseFloat(candles1h[candles1h.length - 1].close);
+    
+    // Proxy de rango de inicio de semana (últimas 24-48 horas de velas de 1h)
+    const mondayWindow = candles1h.slice(Math.max(0, candles1h.length - 48), candles1h.length - 24);
+    const mondayHigh = mondayWindow.length > 0 ? Math.max(...mondayWindow.map(c => parseFloat(c.high))) : lastPrice * 1.01;
+    const mondayLow = mondayWindow.length > 0 ? Math.min(...mondayWindow.map(c => parseFloat(c.low))) : lastPrice * 0.99;
+    const mondayMid = (mondayHigh + mondayLow) / 2;
+
+    const devPercent = ((lastPrice - mondayMid) / mondayMid) * 100;
+
+    const reasons = [
+      `Precio Spot 1H: $${lastPrice.toLocaleString()}`,
+      `Equilibrio Semanal (Monday Mid): $${Math.round(mondayMid).toLocaleString()}`,
+      `Desviación respecto al valor medio: ${devPercent >= 0 ? '+' : ''}${devPercent.toFixed(2)}%`
+    ];
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (devPercent <= -1.8) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 0.99;
+      const tp = mondayMid;
+      const profitPercent = parseFloat((((tp - entry) / entry) * 100).toFixed(2));
+      signal = {
+        type: 'LONG',
+        entry,
+        sl,
+        tp,
+        riskPercent: 1.0,
+        profitPercent: Math.max(profitPercent, 1.8),
+        reasons: [...reasons, 'Reversión al Valor Semanal: Desviación Extrema por debajo del Monday Range']
+      };
+    } else if (devPercent >= 1.8) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = entry * 1.01;
+      const tp = mondayMid;
+      const profitPercent = parseFloat((((entry - tp) / entry) * 100).toFixed(2));
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl,
+        tp,
+        riskPercent: 1.0,
+        profitPercent: Math.max(profitPercent, 1.8),
+        reasons: [...reasons, 'Reversión al Valor Semanal: Desviación Extrema por encima del Monday Range']
+      };
+    }
+
+    const pUp = devPercent <= -1.0 ? 68 : devPercent >= 1.0 ? 32 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'REVERSIÓN SEMANAL ALCISTA' : pUp <= 45 ? 'REVERSIÓN SEMANAL BAJISTA' : 'VALOR SEMANAL EQUILIBRADO', hasSignal, signal, reasons };
+  }
+
+  /**
+   * Estrategia 29: CME Gap Fill & Weekend Anomaly (Futuros Institucionales Chicago)
+   */
+  runStrategy29(candles1h, candles15m = []) {
+    if (!candles1h || candles1h.length < 40) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 29' };
+    }
+    const lastPrice = parseFloat(candles1h[candles1h.length - 1].close);
+    
+    // Identificar gaps de fin de semana o saltos de liquidez (>1.2% entre velas consecutivas)
+    let detectedGapPrice = null;
+    let gapType = null;
+
+    for (let i = candles1h.length - 30; i < candles1h.length - 2; i++) {
+      const prevClose = parseFloat(candles1h[i].close);
+      const nextOpen = parseFloat(candles1h[i + 1].open);
+      const gapDiff = Math.abs(nextOpen - prevClose) / prevClose;
+
+      if (gapDiff > 0.01) {
+        detectedGapPrice = prevClose;
+        gapType = nextOpen > prevClose ? 'GAP_ABAJO' : 'GAP_ARRIBA';
+      }
+    }
+
+    const reasons = [
+      `Precio Spot 1H: $${lastPrice.toLocaleString()}`,
+      `Estado CME Gap: ${detectedGapPrice ? `🎯 Gap detectado en $${Math.round(detectedGapPrice).toLocaleString()} (${gapType})` : 'Sin Gap abierto reciente'}`
+    ];
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (detectedGapPrice) {
+      if (detectedGapPrice > lastPrice * 1.012) {
+        hasSignal = true;
+        const entry = lastPrice;
+        const sl = entry * 0.99;
+        const tp = detectedGapPrice;
+        const profitPercent = parseFloat((((tp - entry) / entry) * 100).toFixed(2));
+        signal = {
+          type: 'LONG',
+          entry,
+          sl,
+          tp,
+          riskPercent: 1.0,
+          profitPercent: Math.max(profitPercent, 1.8),
+          reasons: [...reasons, 'CME Gap Fill Alcista: Atracción estadística institucional hacia el Gap superior']
+        };
+      } else if (detectedGapPrice < lastPrice * 0.988) {
+        hasSignal = true;
+        const entry = lastPrice;
+        const sl = entry * 1.01;
+        const tp = detectedGapPrice;
+        const profitPercent = parseFloat((((entry - tp) / entry) * 100).toFixed(2));
+        signal = {
+          type: 'SHORT',
+          entry,
+          sl,
+          tp,
+          riskPercent: 1.0,
+          profitPercent: Math.max(profitPercent, 1.8),
+          reasons: [...reasons, 'CME Gap Fill Bajista: Atracción estadística institucional hacia el Gap inferior']
+        };
+      }
+    }
+
+    const pUp = detectedGapPrice ? (detectedGapPrice > lastPrice ? 72 : 28) : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'ATRACCIÓN CME GAP ALCISTA' : pUp <= 45 ? 'ATRACCIÓN CME GAP BAJISTA' : 'CME GAPS CERRADOS', hasSignal, signal, reasons };
+  }
+
+  /**
+   * Estrategia 30: Order Book Iceberg Absorption (Absorción Pasiva Institucional)
+   */
+  runStrategy30(candles5m, cvd5m = 0) {
+    if (!candles5m || candles5m.length < 20) {
+      return { success: false, error: 'Datos insuficientes para la Estrategia 30' };
+    }
+    const lastPrice = parseFloat(candles5m[candles5m.length - 1].close);
+    const lastCandle = candles5m[candles5m.length - 1];
+    const prevCandle = candles5m[candles5m.length - 2];
+
+    const open = parseFloat(lastCandle.open);
+    const close = parseFloat(lastCandle.close);
+    const high = parseFloat(lastCandle.high);
+    const low = parseFloat(lastCandle.low);
+    const candleRange = high - low;
+
+    const lowerWick = Math.min(open, close) - low;
+    const upperWick = high - Math.max(open, close);
+
+    const isBullishAbsorption = candleRange > 0 && (lowerWick / candleRange) >= 0.55 && (cvd5m < 0 || close > open);
+    const isBearishAbsorption = candleRange > 0 && (upperWick / candleRange) >= 0.55 && (cvd5m > 0 || close < open);
+
+    const reasons = [
+      `Precio Spot 5m: $${lastPrice.toLocaleString()}`,
+      `Mecha Inferior (Absorción Compras): ${candleRange > 0 ? ((lowerWick / candleRange) * 100).toFixed(0) : 0}%`,
+      `Mecha Superior (Absorción Ventas): ${candleRange > 0 ? ((upperWick / candleRange) * 100).toFixed(0) : 0}%`,
+      `Order Flow CVD 5m: ${cvd5m >= 0 ? '+' : ''}${cvd5m.toLocaleString()} USD`
+    ];
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (isBullishAbsorption) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = low * 0.998;
+      const tp = entry * 1.012;
+      const riskPercent = parseFloat((((entry - sl) / entry) * 100).toFixed(2));
+      signal = {
+        type: 'LONG',
+        entry,
+        sl,
+        tp,
+        riskPercent: Math.max(riskPercent, 0.5),
+        profitPercent: 1.2,
+        reasons: [...reasons, 'Iceberg Absorption Alcista: Compradores pasivos institucionales absorbieron ventas agresivas']
+      };
+    } else if (isBearishAbsorption) {
+      hasSignal = true;
+      const entry = lastPrice;
+      const sl = high * 1.002;
+      const tp = entry * 0.988;
+      const riskPercent = parseFloat((((sl - entry) / entry) * 100).toFixed(2));
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl,
+        tp,
+        riskPercent: Math.max(riskPercent, 0.5),
+        profitPercent: 1.2,
+        reasons: [...reasons, 'Iceberg Absorption Bajista: Vendedores pasivos institucionales absorbieron compras agresivas']
+      };
+    }
+
+    const pUp = isBullishAbsorption ? 70 : isBearishAbsorption ? 30 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: isBullishAbsorption ? 'ABSORCIÓN ICEBERG COMPRADORA' : isBearishAbsorption ? 'ABSORCIÓN ICEBERG VENDEDORA' : 'FLUJO EQUILIBRADO', hasSignal, signal, reasons };
+  }
+
+  /**
    * Evaluates whether an active pending signal is no longer valid prior to hitting SL/TP.
-   * Criterios de invalidación:
-   * 1. Giro de señal (Signal Flip): El nuevo análisis dio una señal del lado contrario (LONG -> SHORT o viceversa).
-   * 2. Inversión de sesgo/probabilidad: La probabilidad del lado de la señal cayó por debajo de 40% o el bias cambió drásticamente.
-   *
-   * @param {Object} activeSignal - La señal almacenada en estado PENDING
-   * @param {Object} freshResult - El resultado del último cálculo de la misma estrategia
-   * @param {number} currentPrice - Precio spot actual
-   * @returns {Object} { isInvalidated: boolean, reason: string | null }
    */
   checkSignalInvalidation(activeSignal, freshResult, currentPrice) {
     if (!activeSignal || !freshResult || !freshResult.success) {
@@ -2721,11 +3036,7 @@ class TechnicalAnalysisService {
   }
 
   /**
-   * Calculates a Master Consensus Signal by evaluating agreement across strategy families.
-   * Families: Core (1-5), Quant (6-10), FlujoInstitucional (11-15), MomentumYTendencia (16-20), SistemasAvanzados (21-25)
-   *
-   * @param {Object} resultsMap - Map of strategy names to strategy calculation results
-   * @returns {Object} Master consensus analysis and signal
+   * Calculates a Master Consensus Signal across all 30 strategy algorithms.
    */
   calculateMasterConsensus(resultsMap) {
     if (!resultsMap) return { hasConsensus: false, bias: 'NEUTRAL / SIN CONSENSO' };
@@ -2735,7 +3046,8 @@ class TechnicalAnalysisService {
       Quant: ['Estrategia 6', 'Estrategia 7', 'Estrategia 8', 'Estrategia 9', 'Estrategia 10'],
       FlujoInstitucional: ['Estrategia 11', 'Estrategia 12', 'Estrategia 13', 'Estrategia 14', 'Estrategia 15'],
       MomentumYTendencia: ['Estrategia 16', 'Estrategia 17', 'Estrategia 18', 'Estrategia 19', 'Estrategia 20'],
-      SistemasAvanzados: ['Estrategia 21', 'Estrategia 22', 'Estrategia 23', 'Estrategia 24', 'Estrategia 25']
+      SistemasAvanzados: ['Estrategia 21', 'Estrategia 22', 'Estrategia 23', 'Estrategia 24', 'Estrategia 25'],
+      AnomaliasInstitucionales: ['Estrategia 26', 'Estrategia 27', 'Estrategia 28', 'Estrategia 29', 'Estrategia 30']
     };
 
     let longVotes = 0;

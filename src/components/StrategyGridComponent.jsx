@@ -26,6 +26,11 @@ const ALL_STRATEGY_DEFS = [
   { key: 'Estrategia 23', title: '🎗️ Multi-Timeframe Ribbon Convergence', icon: '🎗️' },
   { key: 'Estrategia 24', title: '🌊 Liquidity Pool Impulse & MSS Breakout', icon: '🌊' },
   { key: 'Estrategia 25', title: '👑 Consenso Maestro Quant Ensemble 2.0', icon: '👑' },
+  { key: 'Estrategia 26', title: '🔥 Derivatives Squeeze (Funding Rate + OI)', icon: '🔥' },
+  { key: 'Estrategia 27', title: '🎯 London & NY Judas Swing (Rango Asia)', icon: '🎯' },
+  { key: 'Estrategia 28', title: '📅 Monday Open & Weekly Value Deviation', icon: '📅' },
+  { key: 'Estrategia 29', title: '🏛️ CME Gap Fill & Weekend Anomaly', icon: '🏛️' },
+  { key: 'Estrategia 30', title: '🧊 Order Book Iceberg Absorption', icon: '🧊' },
 ];
 
 export default function StrategyGridComponent({ allAnalysisMap, signalsHistory, analysisLoading, formatPrice }) {

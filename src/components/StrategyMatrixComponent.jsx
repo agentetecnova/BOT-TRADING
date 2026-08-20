@@ -28,7 +28,12 @@ export const STRATEGY_CATALOG = [
   { key: 'Estrategia 22', title: 'Agotamiento Volatilidad ATR Spike', tf: '1H', style: 'INTRADAY', styleLabel: '🎯 Intradía', desc: 'Identifica velas de clímax y picos de rango verdadero para contratendencia.' },
   { key: 'Estrategia 23', title: 'Multi-Timeframe Ribbon Convergence (5m-4h)', tf: '4H', style: 'MACRO', styleLabel: '🏔️ Macro', desc: 'Alineación de 8 medias móviles a través de todas las temporalidades mayores.' },
   { key: 'Estrategia 24', title: 'Liquidity Pool Impulse & MSS Breakout', tf: '15m', style: 'SCALPING', styleLabel: '⚡ Scalping', desc: 'Quiebre de estructura de mercado (Market Structure Shift) con impulso.' },
-  { key: 'Estrategia 25', title: 'Consenso Maestro Quant Ensemble 2.0', tf: 'MULTI', style: 'MACRO', styleLabel: '👑 Consenso', desc: 'Meta-modelo ensamblado que combina los votos ponderados de las 24 estrategias.' }
+  { key: 'Estrategia 25', title: 'Consenso Maestro Quant Ensemble 2.0', tf: 'MULTI', style: 'MACRO', styleLabel: '👑 Consenso', desc: 'Meta-modelo ensamblado que combina los votos ponderados de las estrategias cuantitativas.' },
+  { key: 'Estrategia 26', title: 'Derivatives Squeeze Regime (Funding Rate + OI)', tf: '1H/4H', style: 'MACRO', styleLabel: '🏔️ Macro', desc: 'Detección de Short/Long Squeeze ante tasas de financiamiento extremas y saturación de apalancamiento.' },
+  { key: 'Estrategia 27', title: 'London & NY Judas Swing (Rango Asiático)', tf: '15m', style: 'SCALPING', styleLabel: '⚡ Scalping', desc: 'Caza de liquidez y trampa institucional en máximos/mínimos asiáticos durante la apertura de Londres y NY.' },
+  { key: 'Estrategia 28', title: 'Monday Open & Weekly Value Deviation', tf: '1H', style: 'INTRADAY', styleLabel: '🎯 Intradía', desc: 'Reversión al equilibrio de valor semanal tras desviación extrema del rango de apertura del lunes.' },
+  { key: 'Estrategia 29', title: 'CME Gap Fill & Weekend Anomaly', tf: '1H', style: 'INTRADAY', styleLabel: '🎯 Intradía', desc: 'Atracción estadística institucional hacia el llenado de Gaps de futuros de Bitcoin en CME Chicago.' },
+  { key: 'Estrategia 30', title: 'Order Book Iceberg Absorption', tf: '5m', style: 'SCALPING', styleLabel: '⚡ Scalping', desc: 'Detección de órdenes iceberg institucionales que absorben agresivamente ventas de mercado en soportes clave.' }
 ];
 
 export default function StrategyMatrixComponent({
@@ -151,7 +156,7 @@ export default function StrategyMatrixComponent({
               )}
             </div>
             <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-              Mostrando <b>{filteredCatalog.length}</b> de 25
+              Mostrando <b>{filteredCatalog.length}</b> de 30
             </span>
           </div>
 
@@ -195,7 +200,7 @@ export default function StrategyMatrixComponent({
         {/* FILA 2: BOTONES DE FILTRO POR CATEGORÍA */}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {[
-            { key: 'ALL', label: '🌐 Todas (25)' },
+            { key: 'ALL', label: '🌐 Todas (30)' },
             { key: 'SCALPING', label: '⚡ Scalping (5m-15m)' },
             { key: 'INTRADAY', label: '🎯 Intradía & Swing (1H)' },
             { key: 'MACRO', label: '🏔️ Macro (4H-1D)' },

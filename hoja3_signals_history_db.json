@@ -11,11 +11,13 @@
     "sl": 72473,
     "rr": 1.47,
     "volSpikeConfirmed": false,
-    "status": "PENDING",
+    "status": "SL",
     "createdAt": 1787233336147,
     "timestamp": "20/8/26, 10:42:16 a. m.",
-    "pnlPercent": 0,
-    "timestampMs": 1787233336147
+    "pnlPercent": -1.43,
+    "timestampMs": 1787233336147,
+    "exitPrice": 72505.99,
+    "resolvedAt": 1787251504369
   },
   {
     "id": "div_1786477380337",

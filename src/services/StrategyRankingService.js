@@ -37,7 +37,12 @@ export class StrategyRankingService {
       'Estrategia 22: Agotamiento Volatilidad ATR Spike',
       'Estrategia 23: Multi-Timeframe Ribbon Convergence (5m-4h)',
       'Estrategia 24: Liquidity Pool Impulse & MSS Breakout',
-      'Estrategia 25: Consenso Maestro Quant Ensemble 2.0'
+      'Estrategia 25: Consenso Maestro Quant Ensemble 2.0',
+      'Estrategia 26: Derivatives Squeeze Regime (Funding Rate + Open Interest Climax)',
+      'Estrategia 27: London & NY Judas Swing (Manipulación del Rango Asiático)',
+      'Estrategia 28: Monday Open & Weekly Value Deviation (Rebalanceo Semanal)',
+      'Estrategia 29: CME Gap Fill & Weekend Anomaly (Futuros Institucionales Chicago)',
+      'Estrategia 30: Order Book Iceberg Absorption (Absorción Pasiva Institucional)'
     ];
   }
 

@@ -468,6 +468,13 @@ export default function App() {
       const res23 = technicalAnalysisService.runStrategy23(klinesMap);
       const res24 = technicalAnalysisService.runStrategy24(k15m);
 
+      // Run Institutional Anomalies (Strategies 26 to 30)
+      const res26 = technicalAnalysisService.runStrategy26(k1h);
+      const res27 = technicalAnalysisService.runStrategy27(k15m);
+      const res28 = technicalAnalysisService.runStrategy28(k1h, k1d);
+      const res29 = technicalAnalysisService.runStrategy29(k1h, k15m);
+      const res30 = technicalAnalysisService.runStrategy30(k5m, cvd5m);
+
       const partialResults = {
         'Estrategia 1': res1,
         'Estrategia 2': res2,
@@ -493,6 +500,11 @@ export default function App() {
         'Estrategia 22': res22,
         'Estrategia 23': res23,
         'Estrategia 24': res24,
+        'Estrategia 26': res26,
+        'Estrategia 27': res27,
+        'Estrategia 28': res28,
+        'Estrategia 29': res29,
+        'Estrategia 30': res30,
       };
 
       const res25 = technicalAnalysisService.runStrategy25(partialResults);
@@ -518,7 +530,7 @@ export default function App() {
       const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap);
       setMasterConsensusData(masterConsensus);
 
-      // Procesar nuevas señales para las 25 estrategias
+      // Procesar nuevas señales para las 30 estrategias
       Object.entries(resultsMap).forEach(([stratName, res]) => {
         addNewSignal(stratName, res);
       });
@@ -1112,7 +1124,7 @@ export default function App() {
 
                 <div className="strategy-filter-bar" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Estrategia:</span>
-                  {['ALL', ...Array.from({ length: 25 }, (_, i) => `Estrategia ${i + 1}`)].map((strat) => (
+                  {['ALL', ...Array.from({ length: 30 }, (_, i) => `Estrategia ${i + 1}`)].map((strat) => (
                     <button
                       key={strat}
                       onClick={() => setSelectedStratFilter(strat)}
@@ -1129,7 +1141,7 @@ export default function App() {
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      {strat === 'ALL' ? 'Todas (E1-E25)' : strat.replace('Estrategia ', 'E')}
+                      {strat === 'ALL' ? 'Todas (E1-E30)' : strat.replace('Estrategia ', 'E')}
                     </button>
                   ))}
                 </div>

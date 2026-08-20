@@ -300,6 +300,11 @@ async function runContinuousAnalysis() {
     const res22 = technicalAnalysisService.runStrategy22(k1h);
     const res23 = technicalAnalysisService.runStrategy23(klinesMap);
     const res24 = technicalAnalysisService.runStrategy24(k15m);
+    const res26 = technicalAnalysisService.runStrategy26(k1h);
+    const res27 = technicalAnalysisService.runStrategy27(k15m);
+    const res28 = technicalAnalysisService.runStrategy28(k1h, k1d);
+    const res29 = technicalAnalysisService.runStrategy29(k1h, k15m);
+    const res30 = technicalAnalysisService.runStrategy30(k5m, 0);
 
     const partialResults = {
       'Estrategia 1': res1,
@@ -326,6 +331,11 @@ async function runContinuousAnalysis() {
       'Estrategia 22': res22,
       'Estrategia 23': res23,
       'Estrategia 24': res24,
+      'Estrategia 26': res26,
+      'Estrategia 27': res27,
+      'Estrategia 28': res28,
+      'Estrategia 29': res29,
+      'Estrategia 30': res30,
     };
 
     const res25 = technicalAnalysisService.runStrategy25(partialResults);
