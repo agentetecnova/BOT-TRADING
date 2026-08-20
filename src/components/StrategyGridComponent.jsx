@@ -38,25 +38,30 @@ export default function StrategyGridComponent({ allAnalysisMap, signalsHistory, 
     const slCount = resolved.filter(s => s.status === 'SL').length;
     const winRate = Math.round((tpCount / resolved.length) * 100);
 
-    return { winRate, tpCount, slCount, total: resolved.length };
+    // Obtener la señal activa actualmente en curso
+    const pendingSignal = signalsHistory ? signalsHistory.find(s => s.strategy === stratName && s.status === 'PENDING') : null;
+
+    return { winRate, tpCount, slCount, total: resolved.length, pendingSignal };
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.25rem' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
       {ALL_STRATEGY_DEFS.map(stratItem => {
         const stratData = allAnalysisMap[stratItem.key];
         const stats = getStatsByStrategy(stratItem.key);
+        const activeSignal = stats.pendingSignal;
 
         return (
           <div key={stratItem.key} style={{
-            background: 'rgba(15, 23, 42, 0.65)',
-            border: '1px solid rgba(255,255,255,0.07)',
-            borderRadius: '14px',
+            background: 'rgba(15, 23, 42, 0.75)',
+            border: activeSignal ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(255,255,255,0.07)',
+            borderRadius: '16px',
             padding: '1.25rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '1rem',
             position: 'relative',
+            boxShadow: activeSignal ? '0 4px 20px rgba(245, 158, 11, 0.08)' : 'none',
             overflow: 'hidden'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -82,30 +87,55 @@ export default function StrategyGridComponent({ allAnalysisMap, signalsHistory, 
 
             {analysisLoading ? (
               <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '1.5rem 0' }}>Cargando indicadores...</div>
-            ) : stratData ? (
+            ) : (
               <>
                 {/* Probabilities progress bar */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                    <span style={{ color: 'var(--color-up)' }}>COMPRA: {stratData.pUp}%</span>
-                    <span style={{ color: 'var(--color-down)' }}>VENTA: {stratData.pDown}%</span>
+                {stratData && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      <span style={{ color: 'var(--color-up)' }}>COMPRA: {stratData.pUp}%</span>
+                      <span style={{ color: 'var(--color-down)' }}>VENTA: {stratData.pDown}%</span>
+                    </div>
+                    <div style={{ height: '7px', background: 'rgba(255, 23, 68, 0.2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${stratData.pUp}%`, background: 'var(--color-up)', transition: 'width 0.5s ease' }} />
+                      <div style={{ width: `${stratData.pDown}%`, background: 'var(--color-down)', transition: 'width 0.5s ease' }} />
+                    </div>
                   </div>
-                  <div style={{ height: '7px', background: 'rgba(255, 23, 68, 0.2)', borderRadius: '99px', overflow: 'hidden', display: 'flex' }}>
-                    <div style={{ width: `${stratData.pUp}%`, background: 'var(--color-up)', transition: 'width 0.5s ease' }} />
-                    <div style={{ width: `${stratData.pDown}%`, background: 'var(--color-down)', transition: 'width 0.5s ease' }} />
-                  </div>
-                </div>
+                )}
 
-                {/* Active Signal */}
-                {stratData.hasSignal && stratData.signal ? (
+                {/* Active Signal Tracking */}
+                {activeSignal ? (
                   <div style={{
-                    padding: '0.75rem',
-                    borderRadius: '10px',
+                    padding: '0.85rem',
+                    borderRadius: '12px',
+                    background: activeSignal.type === 'LONG' ? 'rgba(0,230,118,0.08)' : 'rgba(255,23,68,0.08)',
+                    border: `1px solid ${activeSignal.type === 'LONG' ? 'rgba(0,230,118,0.3)' : 'rgba(255,23,68,0.3)'}`
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: activeSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)' }}>
+                        🟢 SEÑAL EN CURSO: {activeSignal.type}
+                      </span>
+                      {typeof activeSignal.maxFavorablePercent === 'number' && activeSignal.maxFavorablePercent > 0 && (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.12)', padding: '0.15rem 0.45rem', borderRadius: '6px' }}>
+                          Máx. a favor: +{activeSignal.maxFavorablePercent}% 🚀
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                      <div>Entrada: ${formatPrice(activeSignal.entry)}</div>
+                      <div style={{ color: 'var(--color-down)' }}>Stop Loss: ${formatPrice(activeSignal.sl)} (-{activeSignal.riskPercent}%)</div>
+                      <div style={{ color: 'var(--color-up)' }}>Take Profit: ${formatPrice(activeSignal.tp)} (+{activeSignal.profitPercent}%)</div>
+                    </div>
+                  </div>
+                ) : stratData && stratData.hasSignal && stratData.signal ? (
+                  <div style={{
+                    padding: '0.85rem',
+                    borderRadius: '12px',
                     background: stratData.signal.type === 'LONG' ? 'rgba(0,230,118,0.06)' : 'rgba(255,23,68,0.06)',
                     border: `1px solid ${stratData.signal.type === 'LONG' ? 'rgba(0,230,118,0.2)' : 'rgba(255,23,68,0.2)'}`
                   }}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 800, color: stratData.signal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', marginBottom: '0.3rem' }}>
-                      SEÑAL ACTIVA: {stratData.signal.type}
+                      NUEVA SEÑAL: {stratData.signal.type}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
                       <div>Entrada: ${formatPrice(stratData.signal.entry)}</div>
@@ -114,13 +144,13 @@ export default function StrategyGridComponent({ allAnalysisMap, signalsHistory, 
                     </div>
                   </div>
                 ) : (
-                  <div style={{ padding: '0.6rem', textAlign: 'center', fontSize: '0.73rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.06)', borderRadius: '8px' }}>
-                    Sin señal activa en este momento.
+                  <div style={{ padding: '0.65rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', border: '1px dashed rgba(255,255,255,0.06)', borderRadius: '8px' }}>
+                    ⚪ Sin operación activa (Esperando gatillo cuantitativo)
                   </div>
                 )}
 
                 {/* Reasons */}
-                {stratData.reasons && stratData.reasons.length > 0 && (
+                {stratData && stratData.reasons && stratData.reasons.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                     <ul style={{ paddingLeft: '1rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.78rem', color: '#cbd5e1' }}>
                       {stratData.reasons.slice(0, 3).map((r, i) => (
@@ -130,7 +160,7 @@ export default function StrategyGridComponent({ allAnalysisMap, signalsHistory, 
                   </div>
                 )}
               </>
-            ) : null}
+            )}
           </div>
         );
       })}

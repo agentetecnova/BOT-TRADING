@@ -1,5 +1,23 @@
 [
   {
+    "id": "div_1787233336142",
+    "type": "SELL",
+    "direction": "SHORT",
+    "strategy": "Estrategia 1: Divergencias + Volumen",
+    "label": "Divergencia Bajista 🔻 (1H)",
+    "entry": 71485,
+    "tp1": 70036,
+    "tp2": 68982,
+    "sl": 72473,
+    "rr": 1.47,
+    "volSpikeConfirmed": false,
+    "status": "PENDING",
+    "createdAt": 1787233336147,
+    "timestamp": "20/8/26, 10:42:16 a. m.",
+    "pnlPercent": 0,
+    "timestampMs": 1787233336147
+  },
+  {
     "id": "div_1786477380337",
     "type": "BUY",
     "direction": "LONG",
@@ -11,11 +29,13 @@
     "sl": 63105,
     "rr": 1.46,
     "volSpikeConfirmed": false,
-    "status": "PENDING",
+    "status": "TP",
     "createdAt": 1786477380372,
     "timestamp": "11/8/26, 4:43:00 p. m.",
-    "pnlPercent": 0,
-    "timestampMs": 1786477380372
+    "pnlPercent": 12.65,
+    "timestampMs": 1786477380372,
+    "exitPrice": 71485.41,
+    "resolvedAt": 1787233336146
   },
   {
     "id": "div_1786111075180",

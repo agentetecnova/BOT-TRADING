@@ -234,6 +234,7 @@ function addNewSignal(strategyName, strategyResult) {
   const newSignal = {
     id: `${strategyName.replace(/\s+/g, '_')}_${Date.now()}`,
     timestamp: Date.now(),
+    createdAt: Date.now(),
     strategy: strategyName,
     type: sig.type,
     entry: sig.entry,
@@ -242,8 +243,10 @@ function addNewSignal(strategyName, strategyResult) {
     riskPercent: sig.riskPercent,
     profitPercent: sig.profitPercent,
     status: 'PENDING',
+    maxFavorablePercent: 0,
     resolvedAt: null,
-    exitPrice: null
+    exitPrice: null,
+    pnlPercent: 0
   };
 
   signalsHistory = SignalHistoryService.unionMerge([newSignal], signalsHistory, 2000);
@@ -331,31 +334,85 @@ async function runContinuousAnalysis() {
     const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap);
     latestAnalysis = { ...resultsMap, masterConsensus };
 
-    // Verificar TP / SL por precio en señales activas
+    // Verificar TP / SL / MFE por precio en señales activas
     if (lastBtcPrice) {
+      let historyUpdated = false;
+      const now = Date.now();
+
       signalsHistory = signalsHistory.map(sig => {
         if (sig.status !== 'PENDING') return sig;
-        if (sig.type === 'LONG') {
-          if (lastBtcPrice >= sig.tp) {
-            log('SISTEMA 24/7', `Señal LONG ${sig.strategy} tocó TP ✅ a $${lastBtcPrice}`, 'success');
-            return { ...sig, status: 'TP', resolvedAt: Date.now(), exitPrice: lastBtcPrice };
-          }
-          if (lastBtcPrice <= sig.sl) {
-            log('SISTEMA 24/7', `Señal LONG ${sig.strategy} tocó SL ❌ a $${lastBtcPrice}`, 'error');
-            return { ...sig, status: 'SL', resolvedAt: Date.now(), exitPrice: lastBtcPrice };
-          }
-        } else {
-          if (lastBtcPrice <= sig.tp) {
-            log('SISTEMA 24/7', `Señal SHORT ${sig.strategy} tocó TP ✅ a $${lastBtcPrice}`, 'success');
-            return { ...sig, status: 'TP', resolvedAt: Date.now(), exitPrice: lastBtcPrice };
-          }
-          if (lastBtcPrice >= sig.sl) {
-            log('SISTEMA 24/7', `Señal SHORT ${sig.strategy} tocó SL ❌ a $${lastBtcPrice}`, 'error');
-            return { ...sig, status: 'SL', resolvedAt: Date.now(), exitPrice: lastBtcPrice };
-          }
+
+        const isLong = sig.type === 'LONG';
+        const rawGain = isLong
+          ? ((lastBtcPrice - sig.entry) / sig.entry) * 100
+          : ((sig.entry - lastBtcPrice) / sig.entry) * 100;
+        const currentGain = parseFloat(rawGain.toFixed(2));
+
+        const prevMax = typeof sig.maxFavorablePercent === 'number' ? sig.maxFavorablePercent : 0;
+        const newMax = Math.max(prevMax, currentGain);
+        const sigCreated = sig.createdAt || sig.timestamp || now;
+        const elapsedMs = now - sigCreated;
+
+        // 1. Check Take Profit
+        if (isLong ? lastBtcPrice >= sig.tp : lastBtcPrice <= sig.tp) {
+          historyUpdated = true;
+          log('SISTEMA 24/7', `Señal ${sig.type} ${sig.strategy} tocó TP ✅ a $${lastBtcPrice} (+${sig.profitPercent}%)`, 'success');
+          return {
+            ...sig,
+            status: 'TP',
+            resolvedAt: now,
+            exitPrice: lastBtcPrice,
+            pnlPercent: sig.profitPercent || Math.abs(currentGain),
+            maxFavorablePercent: Math.max(newMax, sig.profitPercent || 2.0),
+            durationMs: elapsedMs
+          };
         }
+
+        // 2. Check Stop Loss
+        if (isLong ? lastBtcPrice <= sig.sl : lastBtcPrice >= sig.sl) {
+          historyUpdated = true;
+          log('SISTEMA 24/7', `Señal ${sig.type} ${sig.strategy} tocó SL ❌ a $${lastBtcPrice} (-${sig.riskPercent}%)`, 'error');
+          return {
+            ...sig,
+            status: 'SL',
+            resolvedAt: now,
+            exitPrice: lastBtcPrice,
+            pnlPercent: -(sig.riskPercent || Math.abs(currentGain)),
+            maxFavorablePercent: newMax,
+            durationMs: elapsedMs
+          };
+        }
+
+        // 3. Check 72h TTL Timeout
+        if (elapsedMs > 72 * 60 * 60 * 1000) {
+          historyUpdated = true;
+          log('SISTEMA 24/7', `Señal ${sig.type} ${sig.strategy} expiró por tiempo (72h) ⏱️ a $${lastBtcPrice} (${currentGain >= 0 ? '+' : ''}${currentGain}%)`, 'info');
+          return {
+            ...sig,
+            status: 'TIMEOUT',
+            resolvedAt: now,
+            exitPrice: lastBtcPrice,
+            pnlPercent: currentGain,
+            maxFavorablePercent: newMax,
+            durationMs: elapsedMs
+          };
+        }
+
+        // 4. Update MFE if price moved further in favor
+        if (newMax > prevMax) {
+          historyUpdated = true;
+          return {
+            ...sig,
+            maxFavorablePercent: newMax
+          };
+        }
+
         return sig;
       });
+
+      if (historyUpdated) {
+        saveDiskDatabase();
+      }
     }
 
     // Agregar nuevas señales

@@ -64,9 +64,15 @@ export class StrategyRankingService {
         pendingCount: 0,
         tpCount: 0,
         slCount: 0,
+        timeoutCount: 0,
         invalidatedCount: 0,
         winRatePercent: 0,
         totalPnlPercent: 0,
+        mfeSum: 0,
+        mfeCount: 0,
+        directionalSuccessCount: 0,
+        avgMfePercent: 0,
+        directionalAccuracyPercent: 0,
         avgRiskReward: 1.8,
         tier: 'STANDARD'
       });
@@ -92,9 +98,15 @@ export class StrategyRankingService {
           pendingCount: 0,
           tpCount: 0,
           slCount: 0,
+          timeoutCount: 0,
           invalidatedCount: 0,
           winRatePercent: 0,
           totalPnlPercent: 0,
+          mfeSum: 0,
+          mfeCount: 0,
+          directionalSuccessCount: 0,
+          avgMfePercent: 0,
+          directionalAccuracyPercent: 0,
           avgRiskReward: 1.8,
           tier: 'STANDARD'
         });
@@ -102,6 +114,22 @@ export class StrategyRankingService {
 
       const stat = rankingMap.get(key);
       stat.totalSignals += 1;
+
+      // Calcular o extraer MFE (% máximo a favor)
+      let mfe = typeof sig.maxFavorablePercent === 'number' ? sig.maxFavorablePercent : null;
+      if (mfe === null) {
+        if (sig.status === 'TP') mfe = sig.profitPercent || 2.0;
+        else if (sig.status === 'SL') mfe = 0.3;
+        else if (sig.status === 'TIMEOUT') mfe = Math.max(0, sig.pnlPercent || 0.5);
+        else mfe = 0;
+      }
+      stat.mfeSum += Math.max(0, mfe);
+      stat.mfeCount += 1;
+
+      // Se considera acierto direccional si el precio avanzó al menos +0.6% a favor
+      if (mfe >= 0.6 || sig.status === 'TP') {
+        stat.directionalSuccessCount += 1;
+      }
 
       if (sig.status === 'TP') {
         stat.tpCount += 1;
@@ -111,6 +139,10 @@ export class StrategyRankingService {
         stat.slCount += 1;
         const pnl = sig.riskPercent || sig.pnlPercent || 1.0;
         stat.totalPnlPercent -= Math.abs(pnl);
+      } else if (sig.status === 'TIMEOUT') {
+        stat.timeoutCount += 1;
+        const pnl = sig.pnlPercent || 0;
+        stat.totalPnlPercent += pnl;
       } else if (sig.status === 'INVALIDATED') {
         stat.invalidatedCount += 1;
       } else if (sig.status === 'PENDING') {
@@ -118,32 +150,47 @@ export class StrategyRankingService {
       }
     });
 
-    // Calcular porcentajes y asignar Tiers de efectividad
+    // Calcular porcentajes, MFE promedio y asignar Tiers de efectividad
     const rankingList = Array.from(rankingMap.values()).map(stat => {
-      const completed = stat.tpCount + stat.slCount;
-      const winRate = completed > 0 
-        ? parseFloat(((stat.tpCount / completed) * 100).toFixed(1)) 
-        : (stat.totalSignals > 0 ? 100.0 : 0.0);
+      const completed = stat.tpCount + stat.slCount + stat.timeoutCount;
+      const resolvedTpSl = stat.tpCount + stat.slCount;
+      
+      const winRate = resolvedTpSl > 0 
+        ? parseFloat(((stat.tpCount / resolvedTpSl) * 100).toFixed(1)) 
+        : (stat.totalSignals > 0 && stat.tpCount > 0 ? 100.0 : 0.0);
 
-      let tier = 'TITANIUM';
-      if (winRate >= 80) tier = 'ELITE S-TIER 👑';
-      else if (winRate >= 65) tier = 'GOLD A-TIER 🥇';
-      else if (winRate >= 50) tier = 'SILVER B-TIER 🥈';
-      else tier = 'TESTING 🧪';
+      const avgMfe = stat.mfeCount > 0 
+        ? parseFloat((stat.mfeSum / stat.mfeCount).toFixed(2)) 
+        : 0;
+
+      const directionalAccuracy = stat.totalSignals > 0
+        ? parseFloat(((stat.directionalSuccessCount / stat.totalSignals) * 100).toFixed(1))
+        : 0;
+
+      let tier = 'STANDARD ⚙️';
+      if (winRate >= 75 && stat.totalSignals >= 2) tier = 'ELITE S-TIER 👑';
+      else if (winRate >= 60 || directionalAccuracy >= 75) tier = 'GOLD A-TIER 🥇';
+      else if (winRate >= 45 || directionalAccuracy >= 55) tier = 'SILVER B-TIER 🥈';
+      else tier = 'EN PRUEBA 🧪';
 
       return {
         ...stat,
         completedCount: completed,
         winRatePercent: winRate,
+        avgMfePercent: avgMfe,
+        directionalAccuracyPercent: directionalAccuracy,
         totalPnlPercent: parseFloat(stat.totalPnlPercent.toFixed(2)),
         tier
       };
     });
 
-    // Ordenar ranking por Win Rate descendente, luego por PnL total
+    // Ordenar ranking por Win Rate descendente, luego por MFE y PnL total
     rankingList.sort((a, b) => {
       if (b.winRatePercent !== a.winRatePercent) {
         return b.winRatePercent - a.winRatePercent;
+      }
+      if (b.avgMfePercent !== a.avgMfePercent) {
+        return b.avgMfePercent - a.avgMfePercent;
       }
       if (b.totalPnlPercent !== a.totalPnlPercent) {
         return b.totalPnlPercent - a.totalPnlPercent;

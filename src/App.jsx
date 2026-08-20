@@ -320,42 +320,89 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Monitor price updates to check and resolve active signals
+  // Monitor price updates to check and resolve active signals with live MFE tracking
   useEffect(() => {
     if (btcPrice === null) return;
     
     setSignalsHistory(prev => {
       let updated = false;
+      const now = Date.now();
+
       const next = prev.map(sig => {
         if (sig.status !== 'PENDING') return sig;
 
-        if (sig.type === 'LONG') {
-          if (btcPrice >= sig.tp) {
-            updated = true;
-            addLog('Sistema', `Señal LONG de ${sig.strategy} tocó TAKE PROFIT ✅ a $${formatPrice(btcPrice)}`, 'up');
-            return { ...sig, status: 'TP', resolvedAt: Date.now(), exitPrice: btcPrice };
-          }
-          if (btcPrice <= sig.sl) {
-            updated = true;
-            addLog('Sistema', `Señal LONG de ${sig.strategy} tocó STOP LOSS ❌ a $${formatPrice(btcPrice)}`, 'down');
-            return { ...sig, status: 'SL', resolvedAt: Date.now(), exitPrice: btcPrice };
-          }
-        } else { // SHORT
-          if (btcPrice <= sig.tp) {
-            updated = true;
-            addLog('Sistema', `Señal SHORT de ${sig.strategy} tocó TAKE PROFIT ✅ a $${formatPrice(btcPrice)}`, 'up');
-            return { ...sig, status: 'TP', resolvedAt: Date.now(), exitPrice: btcPrice };
-          }
-          if (btcPrice >= sig.sl) {
-            updated = true;
-            addLog('Sistema', `Señal SHORT de ${sig.strategy} tocó STOP LOSS ❌ a $${formatPrice(btcPrice)}`, 'down');
-            return { ...sig, status: 'SL', resolvedAt: Date.now(), exitPrice: btcPrice };
-          }
+        const isLong = sig.type === 'LONG';
+        const rawGain = isLong
+          ? ((btcPrice - sig.entry) / sig.entry) * 100
+          : ((sig.entry - btcPrice) / sig.entry) * 100;
+        const currentGain = parseFloat(rawGain.toFixed(2));
+
+        const prevMax = typeof sig.maxFavorablePercent === 'number' ? sig.maxFavorablePercent : 0;
+        const newMax = Math.max(prevMax, currentGain);
+        const sigCreated = sig.createdAt || sig.timestamp || now;
+        const elapsedMs = now - sigCreated;
+
+        // 1. Check Take Profit
+        if (isLong ? btcPrice >= sig.tp : btcPrice <= sig.tp) {
+          updated = true;
+          addLog('Sistema', `Señal ${sig.type} de ${sig.strategy} tocó TAKE PROFIT ✅ a $${formatPrice(btcPrice)} (+${sig.profitPercent}%)`, 'up');
+          return {
+            ...sig,
+            status: 'TP',
+            resolvedAt: now,
+            exitPrice: btcPrice,
+            pnlPercent: sig.profitPercent || Math.abs(currentGain),
+            maxFavorablePercent: Math.max(newMax, sig.profitPercent || 2.0),
+            durationMs: elapsedMs
+          };
         }
+
+        // 2. Check Stop Loss
+        if (isLong ? btcPrice <= sig.sl : btcPrice >= sig.sl) {
+          updated = true;
+          addLog('Sistema', `Señal ${sig.type} de ${sig.strategy} tocó STOP LOSS ❌ a $${formatPrice(btcPrice)} (-${sig.riskPercent}%)`, 'down');
+          return {
+            ...sig,
+            status: 'SL',
+            resolvedAt: now,
+            exitPrice: btcPrice,
+            pnlPercent: -(sig.riskPercent || Math.abs(currentGain)),
+            maxFavorablePercent: newMax,
+            durationMs: elapsedMs
+          };
+        }
+
+        // 3. Check 72-Hour Expiration (TTL)
+        if (elapsedMs > 72 * 60 * 60 * 1000) {
+          updated = true;
+          addLog('Sistema', `Señal ${sig.type} de ${sig.strategy} finalizó por TIEMPO (72h) ⏱️ a $${formatPrice(btcPrice)} (${currentGain >= 0 ? '+' : ''}${currentGain}%)`, 'Sistema');
+          return {
+            ...sig,
+            status: 'TIMEOUT',
+            resolvedAt: now,
+            exitPrice: btcPrice,
+            pnlPercent: currentGain,
+            maxFavorablePercent: newMax,
+            durationMs: elapsedMs
+          };
+        }
+
+        // 4. Update MFE if price moved further in favor
+        if (newMax > prevMax) {
+          updated = true;
+          return {
+            ...sig,
+            maxFavorablePercent: newMax
+          };
+        }
+
         return sig;
       });
 
-      return next;
+      if (updated) {
+        SignalHistoryService.saveToLocalStorage('btc_signals_history_backup', next, 2000);
+      }
+      return updated ? next : prev;
     });
   }, [btcPrice]);
 
@@ -584,30 +631,56 @@ export default function App() {
   const renderSignalStatusBadge = (sig) => {
     if (sig.status === 'PENDING') {
       return (
-        <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <span className="pulse-yellow bg-yellow-500" style={{ width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block' }}></span>
-          Pendiente
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+          <span style={{ color: '#eab308', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700 }}>
+            <span className="pulse-yellow bg-yellow-500" style={{ width: '7px', height: '7px', borderRadius: '50%', display: 'inline-block' }}></span>
+            En Curso
+          </span>
+          {typeof sig.maxFavorablePercent === 'number' && sig.maxFavorablePercent > 0 && (
+            <span style={{ fontSize: '0.7rem', color: '#38bdf8' }}>
+              Máx: +{sig.maxFavorablePercent}%
+            </span>
+          )}
+        </div>
       );
     }
     if (sig.status === 'TP') {
-      return <span style={{ color: 'var(--color-up)', fontWeight: 600 }}>✅ Acierto (TP)</span>;
+      return (
+        <span style={{ color: 'var(--color-up)', fontWeight: 700, background: 'rgba(0, 230, 118, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.78rem' }}>
+          ✅ TP (+{sig.profitPercent || 2.0}%)
+        </span>
+      );
+    }
+    if (sig.status === 'SL') {
+      return (
+        <span style={{ color: 'var(--color-down)', fontWeight: 700, background: 'rgba(255, 23, 68, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.78rem' }}>
+          ❌ SL (-{sig.riskPercent || 1.0}%)
+        </span>
+      );
+    }
+    if (sig.status === 'TIMEOUT') {
+      const pnl = sig.pnlPercent || 0;
+      return (
+        <span style={{ color: '#94a3b8', fontWeight: 700, background: 'rgba(148, 163, 184, 0.12)', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.78rem' }}>
+          ⏱️ Exp (72h) {pnl >= 0 ? `+${pnl}%` : `${pnl}%`}
+        </span>
+      );
     }
     if (sig.status === 'INVALIDATED') {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-          <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            ⚠️ INVALIDADA <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>(Salida Precoz)</span>
+          <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: '0.78rem' }}>
+            ⚠️ INVALIDADA
           </span>
           {sig.invalidationReason && (
-            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', maxWidth: '240px', lineHeight: 1.25 }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', maxWidth: '200px' }}>
               {sig.invalidationReason}
             </span>
           )}
         </div>
       );
     }
-    return <span style={{ color: 'var(--color-down)', fontWeight: 600 }}>❌ Pérdida (SL)</span>;
+    return <span style={{ color: 'var(--color-text-muted)' }}>{sig.status}</span>;
   };
 
   // Calculate rolling CVD divergence situation
@@ -1083,6 +1156,8 @@ export default function App() {
                       <th style={{ padding: '0.75rem' }}>Entrada</th>
                       <th style={{ padding: '0.75rem' }}>Stop Loss</th>
                       <th style={{ padding: '0.75rem' }}>Take Profit</th>
+                      <th style={{ padding: '0.75rem' }}>Máx. a Favor (MFE)</th>
+                      <th style={{ padding: '0.75rem' }}>Duración</th>
                       <th style={{ padding: '0.75rem' }}>Resultado</th>
                     </tr>
                   </thead>
@@ -1093,6 +1168,9 @@ export default function App() {
                       .map((sig) => {
                         const d = new Date(sig.timestamp);
                         const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        const mfe = typeof sig.maxFavorablePercent === 'number' && sig.maxFavorablePercent > 0 ? sig.maxFavorablePercent : (sig.status === 'TP' ? (sig.profitPercent || 2.0) : null);
+                        const durationMs = sig.durationMs || (sig.resolvedAt ? (sig.resolvedAt - (sig.createdAt || sig.timestamp)) : (Date.now() - (sig.createdAt || sig.timestamp)));
+                        
                         return (
                           <tr key={sig.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#cbd5e1' }}>
                             <td style={{ padding: '0.75rem' }} className="font-mono">{dateStr}</td>
@@ -1105,6 +1183,12 @@ export default function App() {
                             <td style={{ padding: '0.75rem' }} className="font-mono">${formatPrice(sig.entry)}</td>
                             <td style={{ padding: '0.75rem', color: 'var(--color-down)' }} className="font-mono">${formatPrice(sig.sl)}</td>
                             <td style={{ padding: '0.75rem', color: 'var(--color-up)' }} className="font-mono">${formatPrice(sig.tp)}</td>
+                            <td style={{ padding: '0.75rem', fontWeight: 700, color: '#38bdf8' }}>
+                              {mfe !== null ? `+${mfe}% 🚀` : '--'}
+                            </td>
+                            <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.78rem' }}>
+                              {SignalHistoryService.formatDuration(durationMs)}
+                            </td>
                             <td style={{ padding: '0.75rem' }}>
                               {renderSignalStatusBadge(sig)}
                             </td>
@@ -1114,7 +1198,7 @@ export default function App() {
                     {SignalHistoryService.filterSignalsByDateRange(signalsHistory, dateRangeFilter)
                       .filter((sig) => selectedStratFilter === 'ALL' || sig.strategy === selectedStratFilter).length === 0 && (
                       <tr>
-                        <td colSpan="7" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                        <td colSpan="9" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
                           Historial vacío para la selección actual. Esperando la generación de señales...
                         </td>
                       </tr>

@@ -30,16 +30,32 @@ export class SignalHistoryService {
 
   /**
    * Ponderación de estado para resolver conflictos al fusionar señales idénticas.
-   * TP / SL / INVALIDATED tienen mayor prioridad que PENDING.
+   * TP / SL tienen máxima prioridad, TIMEOUT/INVALIDATED prioridad media, PENDING prioridad base.
    */
   static getStatusPriority(status) {
     switch (status) {
       case 'TP': return 3;
       case 'SL': return 3;
+      case 'TIMEOUT': return 2;
       case 'INVALIDATED': return 2;
       case 'PENDING': return 1;
       default: return 0;
     }
+  }
+
+  /**
+   * Formatea una duración en milisegundos a una cadena legible (ej: "2h 30m", "45m", "1d 4h")
+   */
+  static formatDuration(ms) {
+    if (!ms || isNaN(ms) || ms <= 0) return '--';
+    const totalMinutes = Math.floor(ms / (60 * 1000));
+    if (totalMinutes < 60) return `${Math.max(totalMinutes, 1)}m`;
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    if (hours < 24) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
   }
 
   /**

@@ -1,5 +1,24 @@
 [
   {
+    "id": "master_1787233335782",
+    "timestamp": "20/8/26, 10:42:15 a. m.",
+    "createdAt": 1787233335782,
+    "direction": "LONG",
+    "signalLabel": "SESGO ALCISTA 🟢",
+    "score": 2.91,
+    "confidencePercent": 68,
+    "entryPrice": 71484,
+    "tp1": 74937,
+    "tp2": 76977,
+    "sl": 69130,
+    "rr": 1.47,
+    "status": "PENDING",
+    "exitPrice": null,
+    "pnlPercent": 0,
+    "invalidationReason": null,
+    "timestampMs": 1787233335782
+  },
+  {
     "id": "master_1786393138510",
     "timestamp": "10/8/26, 5:18:58 p. m.",
     "createdAt": 1786393138510,
@@ -12,11 +31,12 @@
     "tp2": 59564,
     "sl": 66049,
     "rr": 1.47,
-    "status": "PENDING",
-    "exitPrice": null,
-    "pnlPercent": 0,
+    "status": "SL",
+    "exitPrice": 71484.01,
+    "pnlPercent": -11.51,
     "invalidationReason": null,
-    "timestampMs": 1786393138510
+    "timestampMs": 1786393138510,
+    "resolvedAt": 1787233335763
   },
   {
     "id": "master_1786111074833",
@@ -31,10 +51,11 @@
     "tp2": 69913,
     "sl": 62946,
     "rr": 1.47,
-    "status": "PENDING",
-    "exitPrice": null,
-    "pnlPercent": 0,
+    "status": "TP",
+    "exitPrice": 71484.01,
+    "pnlPercent": 9.91,
     "invalidationReason": null,
-    "timestampMs": 1786111074833
+    "timestampMs": 1786111074833,
+    "resolvedAt": 1787233335763
   }
 ]
