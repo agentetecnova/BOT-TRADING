@@ -5,6 +5,8 @@ import BTCDivergenceQuantSheet from './components/BTCDivergenceQuantSheet';
 import SignalHistoryService from './services/SignalHistoryService';
 import StrategyRankingComponent from './components/StrategyRankingComponent';
 import StrategyGridComponent from './components/StrategyGridComponent';
+import StrategyMatrixComponent from './components/StrategyMatrixComponent';
+import LiveTradesComponent from './components/LiveTradesComponent';
 import './App.css';
 
 class SheetErrorBoundary extends React.Component {
@@ -69,7 +71,7 @@ export default function App() {
   };
 
   // Technical Analysis states
-  const [activeTab, setActiveTab] = useState('core'); // 'core' | 'advanced' | 'institutional'
+  const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'live' | 'history' | 'telemetry'
   const [strat1Data, setStrat1Data] = useState(null);
   const [strat2Data, setStrat2Data] = useState(null);
   const [strat3Data, setStrat3Data] = useState(null);
@@ -957,12 +959,12 @@ export default function App() {
           {/* TAB SYSTEM NAV SELECTOR */}
           <div className="tab-switcher" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
             <button 
-              onClick={() => setActiveTab('core')}
+              onClick={() => setActiveTab('matrix')}
               className="tab-button"
               style={{
-                background: activeTab === 'core' ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
-                border: `1px solid ${activeTab === 'core' ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
-                color: activeTab === 'core' ? '#fff' : 'var(--color-text-muted)',
+                background: activeTab === 'matrix' ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(59, 130, 246, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${activeTab === 'matrix' ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                color: activeTab === 'matrix' ? '#fff' : 'var(--color-text-muted)',
                 padding: '0.65rem 1.25rem',
                 borderRadius: '10px',
                 cursor: 'pointer',
@@ -971,25 +973,33 @@ export default function App() {
                 transition: 'all 0.3s ease'
               }}
             >
-              🎯 25 Modelos Predictivos
+              📊 1. Matriz & Comparador (25 Modelos)
             </button>
 
             <button 
-              onClick={() => setActiveTab('ranking')}
+              onClick={() => setActiveTab('live')}
               className="tab-button"
               style={{
-                background: activeTab === 'ranking' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
-                border: `1px solid ${activeTab === 'ranking' ? '#f59e0b' : 'rgba(255,255,255,0.05)'}`,
-                color: activeTab === 'ranking' ? '#fff' : 'var(--color-text-muted)',
+                background: activeTab === 'live' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${activeTab === 'live' ? '#10b981' : 'rgba(255,255,255,0.05)'}`,
+                color: activeTab === 'live' ? '#fff' : 'var(--color-text-muted)',
                 padding: '0.65rem 1.25rem',
                 borderRadius: '10px',
                 cursor: 'pointer',
                 fontWeight: 700,
                 fontSize: '0.88rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
                 transition: 'all 0.3s ease'
               }}
             >
-              🏆 Ranking de Efectividad (% Win Rate)
+              ⚡ 2. Operaciones en Vivo
+              {signalsHistory.filter(s => s.status === 'PENDING').length > 0 && (
+                <span style={{ padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#10b981', color: '#000', fontSize: '0.72rem', fontWeight: 800 }}>
+                  {signalsHistory.filter(s => s.status === 'PENDING').length}
+                </span>
+              )}
             </button>
 
             <button 
@@ -1007,15 +1017,15 @@ export default function App() {
                 transition: 'all 0.3s ease'
               }}
             >
-              📜 Historial de Señales ({signalsHistory.length})
+              📜 3. Historial de Señales ({signalsHistory.length})
             </button>
 
             <button 
               onClick={() => setActiveTab('telemetry')}
               className="tab-button"
               style={{
-                background: activeTab === 'telemetry' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
-                border: `1px solid ${activeTab === 'telemetry' ? '#10b981' : 'rgba(255,255,255,0.05)'}`,
+                background: activeTab === 'telemetry' ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.08) 100%)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${activeTab === 'telemetry' ? '#f59e0b' : 'rgba(255,255,255,0.05)'}`,
                 color: activeTab === 'telemetry' ? '#fff' : 'var(--color-text-muted)',
                 padding: '0.65rem 1.25rem',
                 borderRadius: '10px',
@@ -1025,50 +1035,30 @@ export default function App() {
                 transition: 'all 0.3s ease'
               }}
             >
-              📡 Telemetría & Diagnóstico
+              📡 4. Telemetría & Mercado
             </button>
           </div>
 
-          {activeTab === 'ranking' ? (
-            <StrategyRankingComponent 
-              signalsHistory={signalsHistory} 
+          {activeTab === 'matrix' ? (
+            <StrategyMatrixComponent
+              signalsHistory={signalsHistory}
+              allAnalysisMap={allAnalysisMap}
+              btcPrice={btcPrice}
+              analysisLoading={analysisLoading}
+              onFilterHistory={(stratKey) => {
+                setSelectedStratFilter(stratKey);
+                setActiveTab('history');
+              }}
+            />
+          ) : activeTab === 'live' ? (
+            <LiveTradesComponent
+              signalsHistory={signalsHistory}
+              btcPrice={btcPrice}
               onSelectStrategy={(stratKey) => {
                 setSelectedStratFilter(stratKey);
                 setActiveTab('history');
-              }} 
+              }}
             />
-          ) : activeTab === 'core' ? (
-            <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {/* Section Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem' }}>
-                <div>
-                  <h2 style={{ fontSize: '1.4rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    🧠 25 Modelos Predictivos Cuantitativos BTC en Tiempo Real
-                  </h2>
-                  <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-                    25 estrategias profesionales analizando simultáneamente el flujo, momentum y volatilidad de Bitcoin.
-                  </p>
-                </div>
-                {analysisLoading ? (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="pulse-yellow bg-yellow-500" style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }}></span>
-                    Analizando velas...
-                  </span>
-                ) : (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-up)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="pulse-green bg-green-500" style={{ width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }}></span>
-                    25 Algoritmos Activos 24/7
-                  </span>
-                )}
-              </div>
-
-              <StrategyGridComponent 
-                allAnalysisMap={allAnalysisMap} 
-                signalsHistory={signalsHistory} 
-                analysisLoading={analysisLoading} 
-                formatPrice={formatPrice} 
-              />
-            </section>
           ) : activeTab === 'history' ? (
             <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
