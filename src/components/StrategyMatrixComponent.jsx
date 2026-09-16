@@ -102,7 +102,17 @@ export default function StrategyMatrixComponent({
 
   const rankingMap = useMemo(() => {
     const map = new Map();
-    rankings.forEach(r => map.set(r.shortName, r));
+    rankings.forEach(r => {
+      const pnl = typeof r.totalPnl === 'number' ? r.totalPnl : (typeof r.totalPnlPercent === 'number' ? r.totalPnlPercent : 0);
+      const wr = typeof r.winRate === 'number' ? r.winRate : (typeof r.winRatePercent === 'number' ? r.winRatePercent : null);
+      const mfe = typeof r.avgMfe === 'number' ? r.avgMfe : (typeof r.avgMfePercent === 'number' ? r.avgMfePercent : null);
+      map.set(r.shortName, {
+        ...r,
+        totalPnl: pnl,
+        winRate: wr,
+        avgMfe: mfe
+      });
+    });
     return map;
   }, [rankings]);
 
@@ -115,6 +125,12 @@ export default function StrategyMatrixComponent({
   const formatPrice = (p) => {
     if (typeof p !== 'number' || isNaN(p)) return '--';
     return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // Formatear PnL con signo y fallback seguro
+  const formatPnl = (val) => {
+    const num = typeof val === 'number' && !isNaN(val) ? val : 0;
+    return num >= 0 ? `+${num.toFixed(1)}%` : `${num.toFixed(1)}%`;
   };
 
   // Filtrado y ordenamiento de catálogo
@@ -518,8 +534,8 @@ export default function StrategyMatrixComponent({
                       {stats.avgMfe !== null ? `+${stats.avgMfe}%` : '--'}
                     </td>
 
-                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700, color: stats.totalPnl >= 0 ? 'var(--color-up)' : 'var(--color-down)' }}>
-                      {stats.totalPnl >= 0 ? `+${stats.totalPnl.toFixed(1)}%` : `${stats.totalPnl.toFixed(1)}%`}
+                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700, color: (stats.totalPnl || 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }}>
+                      {formatPnl(stats.totalPnl)}
                     </td>
 
                     <td style={{ padding: '0.7rem 0.6rem', color: 'var(--color-text-muted)' }}>
@@ -620,8 +636,8 @@ export default function StrategyMatrixComponent({
                   </div>
                   <div>
                     <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block' }}>PnL Total</span>
-                    <b style={{ fontSize: '0.9rem', color: stats.totalPnl >= 0 ? '#10b981' : '#ef4444' }}>
-                      {stats.totalPnl >= 0 ? `+${stats.totalPnl.toFixed(1)}%` : `${stats.totalPnl.toFixed(1)}%`}
+                    <b style={{ fontSize: '0.9rem', color: (stats.totalPnl || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                      {formatPnl(stats.totalPnl)}
                     </b>
                   </div>
                   <div>
@@ -698,8 +714,8 @@ export default function StrategyMatrixComponent({
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px', textAlign: 'center' }}>
                       <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>PnL Total</span>
-                      <b style={{ fontSize: '1.2rem', color: stratStats.totalPnl >= 0 ? '#10b981' : '#ef4444' }}>
-                        {stratStats.totalPnl >= 0 ? `+${stratStats.totalPnl.toFixed(1)}%` : `${stratStats.totalPnl.toFixed(1)}%`}
+                      <b style={{ fontSize: '1.2rem', color: (stratStats.totalPnl || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                        {formatPnl(stratStats.totalPnl)}
                       </b>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px', textAlign: 'center' }}>

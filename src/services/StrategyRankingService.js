@@ -208,13 +208,18 @@ export class StrategyRankingService {
       else if (winRate >= 45 || directionalAccuracy >= 55) tier = 'SILVER B-TIER 🥈';
       else tier = 'EN PRUEBA 🧪';
 
+      const formattedPnl = parseFloat((stat.totalPnlPercent || 0).toFixed(2));
+
       return {
         ...stat,
         completedCount: completed,
+        winRate: winRate,
         winRatePercent: winRate,
+        avgMfe: avgMfe,
         avgMfePercent: avgMfe,
+        totalPnl: formattedPnl,
+        totalPnlPercent: formattedPnl,
         directionalAccuracyPercent: directionalAccuracy,
-        totalPnlPercent: parseFloat(stat.totalPnlPercent.toFixed(2)),
         tier
       };
     });

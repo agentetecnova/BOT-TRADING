@@ -796,7 +796,7 @@ export default function App() {
               gap: '0.5rem'
             }}
           >
-            🛸 HOJA 1: Bot Multi-Estrategia (25 Algoritmos)
+            🛸 HOJA 1: Motor Cuantitativo (60 Estrategias)
           </button>
           <button
             onClick={() => setSelectedSheet('sheet2')}
@@ -859,7 +859,7 @@ export default function App() {
           <header className="glass-panel" style={{ padding: '1.5rem 2rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
             <div>
               <h1 style={{ fontSize: '1.8rem', background: 'linear-gradient(to right, #ffffff, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                🛸 Antigravity BTC Quant Terminal (25-in-1)
+                🛸 Antigravity BTC Quant Terminal (60-in-1)
               </h1>
               <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
                 Terminal predictiva especializada y motor cuantitativo 24/7 para Bitcoin.
@@ -904,7 +904,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ⭐ PANEL DE RESUMEN: SEÑAL MAESTRA POR CONSENSO (25 ESTRATEGIAS) */}
+          {/* ⭐ PANEL DE RESUMEN: SEÑAL MAESTRA POR CONSENSO (60 MODELOS) */}
           <div className="glass-panel" style={{
             padding: '1.25rem 1.5rem',
             background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.65) 100%)',
@@ -919,14 +919,14 @@ export default function App() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ fontSize: '1.2rem' }}>⭐</span>
                   <h2 style={{ fontSize: '1.15rem', color: '#fff', margin: 0, fontWeight: 700 }}>
-                    Resumen de Consenso Institucional & Señal Maestra (25 Algoritmos)
+                    Resumen de Consenso Institucional & Señal Maestra (60 Modelos Cuantitativos)
                   </h2>
                   <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
                     Quant Ensemble
                   </span>
                 </div>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
-                  Evaluación agregada de confluencia entre las 25 estrategias cuantitativas en tiempo real.
+                  Evaluación agregada de confluencia entre las 60 estrategias cuantitativas en tiempo real.
                 </p>
               </div>
             </div>

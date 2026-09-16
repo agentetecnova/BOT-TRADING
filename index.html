@@ -10,6 +10,21 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://api.binance.com">
     <link rel="preconnect" href="https://api.mexc.com">
+    <script>
+      window.addEventListener('error', function(e) {
+        var d = document.createElement('div');
+        d.id = 'debug-error-box';
+        d.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#181824;color:#ff5555;padding:30px;font-family:monospace;font-size:16px;z-index:999999;overflow:auto;white-space:pre-wrap;';
+        d.textContent = 'ERROR EN LA WEB:\n' + e.message + '\n\nArchivo: ' + e.filename + ':' + e.lineno + ':' + e.colno + '\n\nStack:\n' + (e.error ? e.error.stack : 'No stack');
+        document.body.appendChild(d);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var d = document.createElement('div');
+        d.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#181824;color:#ffaa00;padding:30px;font-family:monospace;font-size:16px;z-index:999999;overflow:auto;white-space:pre-wrap;';
+        d.textContent = 'PROMISE REJECTION:\n' + (e.reason && e.reason.stack ? e.reason.stack : e.reason);
+        document.body.appendChild(d);
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
