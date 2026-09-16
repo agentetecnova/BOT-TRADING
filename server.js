@@ -475,7 +475,7 @@ async function runContinuousAnalysis() {
 }
 
 // Rutas API HTTP
-app.get('/', (req, res) => {
+app.get('/api/status', (req, res) => {
   res.json({
     service: 'Bot Trading 24/7 Engine',
     status: 'ONLINE',
@@ -624,6 +624,16 @@ function startAutoKeepAlive() {
   // Enviar un ping a los 10s del inicio y luego cada 4 minutos (240.000 ms)
   setTimeout(sendKeepAlivePing, 10000);
   setInterval(sendKeepAlivePing, 4 * 60 * 1000);
+}
+
+// Servir archivos estáticos del frontend (dist)
+const distPath = path.join(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
 }
 
 // Iniciar servidor HTTP y bucle 24/7
