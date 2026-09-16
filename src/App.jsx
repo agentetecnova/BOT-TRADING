@@ -90,6 +90,8 @@ export default function App() {
   const [renderServerStatus, setRenderServerStatus] = useState('syncing'); // 'connected' | 'syncing' | 'local'
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState(null);
+  const [marketRegime, setMarketRegime] = useState(null);
+  const [magneticZones, setMagneticZones] = useState(null);
 
   // Signals History state
   const [signalsHistory, setSignalsHistory] = useState(() => SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup'));
@@ -468,47 +470,60 @@ export default function App() {
       const res23 = technicalAnalysisService.runStrategy23(klinesMap);
       const res24 = technicalAnalysisService.runStrategy24(k15m);
 
-      // Run Institutional Anomalies (Strategies 26 to 30)
+      // Run Strategies 26 to 59
       const res26 = technicalAnalysisService.runStrategy26(k1h);
       const res27 = technicalAnalysisService.runStrategy27(k15m);
       const res28 = technicalAnalysisService.runStrategy28(k1h, k1d);
       const res29 = technicalAnalysisService.runStrategy29(k1h, k15m);
       const res30 = technicalAnalysisService.runStrategy30(k5m, cvd5m);
+      const res31 = technicalAnalysisService.runStrategy31(k15m);
+      const res32 = technicalAnalysisService.runStrategy32(k1h);
+      const res33 = technicalAnalysisService.runStrategy33(k15m);
+      const res34 = technicalAnalysisService.runStrategy34(k1h);
+      const res35 = technicalAnalysisService.runStrategy35(k1d, k1h);
+      const res36 = technicalAnalysisService.runStrategy36(k15m);
+      const res37 = technicalAnalysisService.runStrategy37(k1h);
+      const res38 = technicalAnalysisService.runStrategy38(k15m);
+      const res39 = technicalAnalysisService.runStrategy39(k1h);
+      const res40 = technicalAnalysisService.runStrategy40(k1h);
+      const res41 = technicalAnalysisService.runStrategy41(k1h);
+      const res42 = technicalAnalysisService.runStrategy42(k15m);
+      const res43 = technicalAnalysisService.runStrategy43(k4h);
+      const res44 = technicalAnalysisService.runStrategy44(k1h);
+      const res45 = technicalAnalysisService.runStrategy45(k1h);
+      const res46 = technicalAnalysisService.runStrategy46(k1h);
+      const res47 = technicalAnalysisService.runStrategy47(k1h);
+      const res48 = technicalAnalysisService.runStrategy48(k4h, k1d);
+      const res49 = technicalAnalysisService.runStrategy49(k1h, k4h);
+      const res50 = technicalAnalysisService.runStrategy50(k1d);
+      const res51 = technicalAnalysisService.runStrategy51(k15m, btcPrice);
+      const res52 = technicalAnalysisService.runStrategy52(k5m, k15m, cvd5m);
+      const res53 = technicalAnalysisService.runStrategy53(k15m);
+      const res54 = technicalAnalysisService.runStrategy54(k5m);
+      const res55 = technicalAnalysisService.runStrategy55(k15m, k1h);
+      const res56 = technicalAnalysisService.runStrategy56(k15m, cvd5m);
+      const res57 = technicalAnalysisService.runStrategy57(k5m, cvd5m);
+      const res58 = technicalAnalysisService.runStrategy58(klinesMap);
+      const res59 = technicalAnalysisService.runStrategy59(k1h);
 
       const partialResults = {
-        'Estrategia 1': res1,
-        'Estrategia 2': res2,
-        'Estrategia 3': res3,
-        'Estrategia 4': res4,
-        'Estrategia 5': res5,
-        'Estrategia 6': res6,
-        'Estrategia 7': res7,
-        'Estrategia 8': res8,
-        'Estrategia 9': res9,
-        'Estrategia 10': res10,
-        'Estrategia 11': res11,
-        'Estrategia 12': res12,
-        'Estrategia 13': res13,
-        'Estrategia 14': res14,
-        'Estrategia 15': res15,
-        'Estrategia 16': res16,
-        'Estrategia 17': res17,
-        'Estrategia 18': res18,
-        'Estrategia 19': res19,
-        'Estrategia 20': res20,
-        'Estrategia 21': res21,
-        'Estrategia 22': res22,
-        'Estrategia 23': res23,
-        'Estrategia 24': res24,
-        'Estrategia 26': res26,
-        'Estrategia 27': res27,
-        'Estrategia 28': res28,
-        'Estrategia 29': res29,
-        'Estrategia 30': res30,
+        'Estrategia 1': res1, 'Estrategia 2': res2, 'Estrategia 3': res3, 'Estrategia 4': res4, 'Estrategia 5': res5,
+        'Estrategia 6': res6, 'Estrategia 7': res7, 'Estrategia 8': res8, 'Estrategia 9': res9, 'Estrategia 10': res10,
+        'Estrategia 11': res11, 'Estrategia 12': res12, 'Estrategia 13': res13, 'Estrategia 14': res14, 'Estrategia 15': res15,
+        'Estrategia 16': res16, 'Estrategia 17': res17, 'Estrategia 18': res18, 'Estrategia 19': res19, 'Estrategia 20': res20,
+        'Estrategia 21': res21, 'Estrategia 22': res22, 'Estrategia 23': res23, 'Estrategia 24': res24,
+        'Estrategia 26': res26, 'Estrategia 27': res27, 'Estrategia 28': res28, 'Estrategia 29': res29, 'Estrategia 30': res30,
+        'Estrategia 31': res31, 'Estrategia 32': res32, 'Estrategia 33': res33, 'Estrategia 34': res34, 'Estrategia 35': res35,
+        'Estrategia 36': res36, 'Estrategia 37': res37, 'Estrategia 38': res38, 'Estrategia 39': res39, 'Estrategia 40': res40,
+        'Estrategia 41': res41, 'Estrategia 42': res42, 'Estrategia 43': res43, 'Estrategia 44': res44, 'Estrategia 45': res45,
+        'Estrategia 46': res46, 'Estrategia 47': res47, 'Estrategia 48': res48, 'Estrategia 49': res49, 'Estrategia 50': res50,
+        'Estrategia 51': res51, 'Estrategia 52': res52, 'Estrategia 53': res53, 'Estrategia 54': res54, 'Estrategia 55': res55,
+        'Estrategia 56': res56, 'Estrategia 57': res57, 'Estrategia 58': res58, 'Estrategia 59': res59
       };
 
       const res25 = technicalAnalysisService.runStrategy25(partialResults);
-      const resultsMap = { ...partialResults, 'Estrategia 25': res25 };
+      const res60 = technicalAnalysisService.runStrategy60(partialResults, signalsHistory);
+      const resultsMap = { ...partialResults, 'Estrategia 25': res25, 'Estrategia 60': res60 };
 
       setStrat1Data(res1);
       setStrat2Data(res2);
@@ -530,7 +545,13 @@ export default function App() {
       const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap);
       setMasterConsensusData(masterConsensus);
 
-      // Procesar nuevas señales para las 30 estrategias
+      // Calcular Régimen de Mercado y Zonas Magnéticas
+      const regime = technicalAnalysisService.calculateMarketRegime(klinesMap);
+      const magnetic = technicalAnalysisService.calculateMagneticZones(klinesMap, btcPrice);
+      setMarketRegime(regime);
+      setMagneticZones(magnetic);
+
+      // Procesar nuevas señales para las 60 estrategias
       Object.entries(resultsMap).forEach(([stratName, res]) => {
         addNewSignal(stratName, res);
       });
@@ -985,7 +1006,7 @@ export default function App() {
                 transition: 'all 0.3s ease'
               }}
             >
-              📊 1. Matriz & Comparador (25 Modelos)
+              📊 1. Matriz de 60 Modelos & Ranking
             </button>
 
             <button 
@@ -1057,6 +1078,9 @@ export default function App() {
               allAnalysisMap={allAnalysisMap}
               btcPrice={btcPrice}
               analysisLoading={analysisLoading}
+              marketRegime={marketRegime}
+              magneticZones={magneticZones}
+              masterConsensusData={masterConsensusData}
               onFilterHistory={(stratKey) => {
                 setSelectedStratFilter(stratKey);
                 setActiveTab('history');
@@ -1075,8 +1099,8 @@ export default function App() {
             <section className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                  <h2 style={{ fontSize: '1.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    📜 Historial Global de Señales & Efectividad (25 Estrategias)
+                  <h2 style={{ fontSize: '1.4rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    📜 Historial Auditado de Señales BTC
                   </h2>
                   <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
                     Registro histórico completo de señales autogestionadas por el motor cuantitativo de Bitcoin.
@@ -1124,7 +1148,7 @@ export default function App() {
 
                 <div className="strategy-filter-bar" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Estrategia:</span>
-                  {['ALL', ...Array.from({ length: 30 }, (_, i) => `Estrategia ${i + 1}`)].map((strat) => (
+                  {['ALL', ...Array.from({ length: 60 }, (_, i) => `Estrategia ${i + 1}`)].map((strat) => (
                     <button
                       key={strat}
                       onClick={() => setSelectedStratFilter(strat)}
@@ -1141,7 +1165,7 @@ export default function App() {
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      {strat === 'ALL' ? 'Todas (E1-E30)' : strat.replace('Estrategia ', 'E')}
+                      {strat === 'ALL' ? 'Todas (E1-E60)' : strat.replace('Estrategia ', 'E')}
                     </button>
                   ))}
                 </div>

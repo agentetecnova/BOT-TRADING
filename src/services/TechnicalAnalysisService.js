@@ -9,6 +9,8 @@
  * - Pivot High/Low & RSI Divergence Detection
  */
 
+import { ExtendedStrategies } from './ExtendedStrategies.js';
+
 class TechnicalAnalysisService {
   /**
    * Fetch historical candles (klines) from Binance API
@@ -3035,19 +3037,56 @@ class TechnicalAnalysisService {
     return { isInvalidated: false, reason: null };
   }
 
+  // ============================================================
+  // ESTRATEGIAS 31 A 60 & MOTORES PREDICTIVOS (ExtendedStrategies)
+  // ============================================================
+  runStrategy31(candles15m) { return ExtendedStrategies.runStrategy31(candles15m); }
+  runStrategy32(candles1h) { return ExtendedStrategies.runStrategy32(candles1h); }
+  runStrategy33(candles15m) { return ExtendedStrategies.runStrategy33(candles15m); }
+  runStrategy34(candles1h) { return ExtendedStrategies.runStrategy34(candles1h); }
+  runStrategy35(candles1d, candles1h) { return ExtendedStrategies.runStrategy35(candles1d, candles1h); }
+  runStrategy36(candles15m) { return ExtendedStrategies.runStrategy36(candles15m); }
+  runStrategy37(candles1h) { return ExtendedStrategies.runStrategy37(candles1h); }
+  runStrategy38(candles15m) { return ExtendedStrategies.runStrategy38(candles15m); }
+  runStrategy39(candles1h) { return ExtendedStrategies.runStrategy39(candles1h); }
+  runStrategy40(candles1h) { return ExtendedStrategies.runStrategy40(candles1h); }
+  runStrategy41(candles1h) { return ExtendedStrategies.runStrategy41(candles1h); }
+  runStrategy42(candles15m) { return ExtendedStrategies.runStrategy42(candles15m); }
+  runStrategy43(candles4h) { return ExtendedStrategies.runStrategy43(candles4h); }
+  runStrategy44(candles1h) { return ExtendedStrategies.runStrategy44(candles1h); }
+  runStrategy45(candles1h, fundingRate) { return ExtendedStrategies.runStrategy45(candles1h, fundingRate); }
+  runStrategy46(candles1h) { return ExtendedStrategies.runStrategy46(candles1h); }
+  runStrategy47(candles1h) { return ExtendedStrategies.runStrategy47(candles1h); }
+  runStrategy48(candles4h, candles1d) { return ExtendedStrategies.runStrategy48(candles4h, candles1d); }
+  runStrategy49(candles1h, candles4h) { return ExtendedStrategies.runStrategy49(candles1h, candles4h); }
+  runStrategy50(candles1d) { return ExtendedStrategies.runStrategy50(candles1d); }
+  runStrategy51(candles15m, lastBtcPrice) { return ExtendedStrategies.runStrategy51(candles15m, lastBtcPrice); }
+  runStrategy52(candles5m, candles15m, cvd5m) { return ExtendedStrategies.runStrategy52(candles5m, candles15m, cvd5m); }
+  runStrategy53(candles15m) { return ExtendedStrategies.runStrategy53(candles15m); }
+  runStrategy54(candles5m) { return ExtendedStrategies.runStrategy54(candles5m); }
+  runStrategy55(candles15m, candles1h) { return ExtendedStrategies.runStrategy55(candles15m, candles1h); }
+  runStrategy56(candles15m, cvd5m) { return ExtendedStrategies.runStrategy56(candles15m, cvd5m); }
+  runStrategy57(candles5m, cvd5m) { return ExtendedStrategies.runStrategy57(candles5m, cvd5m); }
+  runStrategy58(klinesMap) { return ExtendedStrategies.runStrategy58(klinesMap); }
+  runStrategy59(candles1h, fundingRate) { return ExtendedStrategies.runStrategy59(candles1h, fundingRate); }
+  runStrategy60(resultsMap, signalsHistory) { return ExtendedStrategies.runStrategy60(resultsMap, signalsHistory); }
+
+  calculateMarketRegime(klinesMap) { return ExtendedStrategies.calculateMarketRegime(klinesMap); }
+  calculateMagneticZones(klinesMap, lastPrice) { return ExtendedStrategies.calculateMagneticZones(klinesMap, lastPrice); }
+
   /**
-   * Calculates a Master Consensus Signal across all 30 strategy algorithms.
+   * Calculates a Master Consensus Signal across all 60 strategy algorithms.
    */
   calculateMasterConsensus(resultsMap) {
     if (!resultsMap) return { hasConsensus: false, bias: 'NEUTRAL / SIN CONSENSO' };
 
     const families = {
-      Core: ['Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4', 'Estrategia 5'],
-      Quant: ['Estrategia 6', 'Estrategia 7', 'Estrategia 8', 'Estrategia 9', 'Estrategia 10'],
-      FlujoInstitucional: ['Estrategia 11', 'Estrategia 12', 'Estrategia 13', 'Estrategia 14', 'Estrategia 15'],
-      MomentumYTendencia: ['Estrategia 16', 'Estrategia 17', 'Estrategia 18', 'Estrategia 19', 'Estrategia 20'],
-      SistemasAvanzados: ['Estrategia 21', 'Estrategia 22', 'Estrategia 23', 'Estrategia 24', 'Estrategia 25'],
-      AnomaliasInstitucionales: ['Estrategia 26', 'Estrategia 27', 'Estrategia 28', 'Estrategia 29', 'Estrategia 30']
+      TendenciaYMomentum: ['Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4', 'Estrategia 5', 'Estrategia 6', 'Estrategia 7', 'Estrategia 8', 'Estrategia 9', 'Estrategia 10'],
+      ReversionOsciladores: ['Estrategia 11', 'Estrategia 12', 'Estrategia 13', 'Estrategia 14', 'Estrategia 15', 'Estrategia 16', 'Estrategia 17', 'Estrategia 18', 'Estrategia 19', 'Estrategia 20'],
+      FlujoYMicroestructura: ['Estrategia 21', 'Estrategia 22', 'Estrategia 23', 'Estrategia 24', 'Estrategia 25', 'Estrategia 26', 'Estrategia 27', 'Estrategia 28', 'Estrategia 29', 'Estrategia 30'],
+      SmartMoneyLiquidez: ['Estrategia 31', 'Estrategia 32', 'Estrategia 33', 'Estrategia 34', 'Estrategia 35', 'Estrategia 36', 'Estrategia 37', 'Estrategia 38', 'Estrategia 39', 'Estrategia 40'],
+      VolatilidadYDerivados: ['Estrategia 41', 'Estrategia 42', 'Estrategia 43', 'Estrategia 44', 'Estrategia 45', 'Estrategia 46', 'Estrategia 47', 'Estrategia 48', 'Estrategia 49', 'Estrategia 50'],
+      PropietariasElite: ['Estrategia 51', 'Estrategia 52', 'Estrategia 53', 'Estrategia 54', 'Estrategia 55', 'Estrategia 56', 'Estrategia 57', 'Estrategia 58', 'Estrategia 59', 'Estrategia 60']
     };
 
     let longVotes = 0;
