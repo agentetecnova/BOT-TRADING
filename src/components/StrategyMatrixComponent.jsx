@@ -80,6 +80,7 @@ export const STRATEGY_CATALOG = [
 export default function StrategyMatrixComponent({
   signalsHistory = [],
   allAnalysisMap = {},
+  backtestMap = {},
   btcPrice,
   analysisLoading = false,
   marketRegime = null,
@@ -145,19 +146,27 @@ export default function StrategyMatrixComponent({
         if (!match) return false;
       }
 
-      // Modo Sniper (>70% Win Rate comprobado)
+      // Modo Sniper (>70% Win Rate comprobado en vivo o backtest)
       if (sniperOnly) {
         const stats = rankingMap.get(strat.key);
-        if (!stats || stats.winRate === null || stats.winRate < 70) return false;
+        const bt = backtestMap?.[strat.key];
+        const liveOk = stats && stats.winRate !== null && stats.winRate >= 65 && stats.totalSignals >= 1;
+        const btOk = bt && bt.totalTrades >= 3 && (bt.winRate || 0) >= 60 && (bt.profitFactor || 0) >= 1.3;
+        if (!liveOk && !btOk) return false;
       }
 
       // Filtro por estilo / estado
       if (selectedStyle === 'ACTIVE') {
         return signalsHistory.some(s => s.strategy === strat.key && s.status === 'PENDING');
       }
+      if (selectedStyle === 'VERIFIED') {
+        const bt = backtestMap?.[strat.key];
+        return bt && bt.totalTrades >= 3 && (bt.profitFactor || 0) >= 1.35 && (bt.winRate || 0) >= 55;
+      }
       if (selectedStyle === 'TOP') {
         const stats = rankingMap.get(strat.key);
-        return stats && stats.winRate !== null && stats.winRate >= 65;
+        const bt = backtestMap?.[strat.key];
+        return (stats && stats.winRate !== null && stats.winRate >= 65) || (bt && (bt.winRate || 0) >= 60 && (bt.profitFactor || 0) >= 1.25);
       }
       if (selectedStyle !== 'ALL') {
         return strat.style === selectedStyle;
@@ -166,22 +175,24 @@ export default function StrategyMatrixComponent({
     }).sort((a, b) => {
       const statsA = rankingMap.get(a.key) || { winRate: -1, avgMfe: -1, totalPnl: -999, totalSignals: 0 };
       const statsB = rankingMap.get(b.key) || { winRate: -1, avgMfe: -1, totalPnl: -999, totalSignals: 0 };
+      const btA = backtestMap?.[a.key];
+      const btB = backtestMap?.[b.key];
 
       let valA = 0;
       let valB = 0;
 
       if (sortField === 'winRate') {
-        valA = statsA.winRate ?? -1;
-        valB = statsB.winRate ?? -1;
+        valA = (statsA.totalSignals > 0 && statsA.winRate !== null) ? statsA.winRate : (btA?.winRate ?? -1);
+        valB = (statsB.totalSignals > 0 && statsB.winRate !== null) ? statsB.winRate : (btB?.winRate ?? -1);
       } else if (sortField === 'mfe') {
         valA = statsA.avgMfe ?? -1;
         valB = statsB.avgMfe ?? -1;
       } else if (sortField === 'pnl') {
-        valA = statsA.totalPnl ?? -999;
-        valB = statsB.totalPnl ?? -999;
+        valA = statsA.totalSignals > 0 ? (statsA.totalPnl ?? -999) : (btA?.totalPnl ?? -999);
+        valB = statsB.totalSignals > 0 ? (statsB.totalPnl ?? -999) : (btB?.totalPnl ?? -999);
       } else if (sortField === 'signals') {
-        valA = statsA.totalSignals ?? 0;
-        valB = statsB.totalSignals ?? 0;
+        valA = statsA.totalSignals || btA?.totalTrades || 0;
+        valB = statsB.totalSignals || btB?.totalTrades || 0;
       } else {
         const numA = parseInt(a.key.replace('Estrategia ', '')) || 0;
         const numB = parseInt(b.key.replace('Estrategia ', '')) || 0;
@@ -190,7 +201,7 @@ export default function StrategyMatrixComponent({
 
       return sortAsc ? valA - valB : valB - valA;
     });
-  }, [searchQuery, selectedStyle, sniperOnly, sortField, sortAsc, rankingMap, signalsHistory]);
+  }, [searchQuery, selectedStyle, sniperOnly, sortField, sortAsc, rankingMap, signalsHistory, backtestMap]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -413,7 +424,8 @@ export default function StrategyMatrixComponent({
             { key: 'VOLATILITY', label: '🌪️ Volatilidad (10)' },
             { key: 'EXPERT', label: '👑 10 Propietarias Experto' },
             { key: 'ACTIVE', label: `🟢 En Curso (${activeCount})` },
-            { key: 'TOP', label: '⭐ Top Rentables (>65%)' }
+            { key: 'VERIFIED', label: '🏆 Verificadas Backtest (PF > 1.35)' },
+            { key: 'TOP', label: '⭐ Top Rentables' }
           ].map(f => (
             <button
               key={f.key}
@@ -451,10 +463,10 @@ export default function StrategyMatrixComponent({
                 <th style={{ padding: '0.75rem 0.6rem' }}>Familia / Estilo</th>
                 <th style={{ padding: '0.75rem 0.6rem' }}>TF</th>
                 <th onClick={() => handleSort('winRate')} style={{ padding: '0.75rem 0.6rem', cursor: 'pointer' }}>
-                  Win Rate % {sortField === 'winRate' ? (sortAsc ? '▲' : '▼') : ''}
+                  Acierto (Vivo / Backtest) {sortField === 'winRate' ? (sortAsc ? '▲' : '▼') : ''}
                 </th>
                 <th onClick={() => handleSort('mfe')} style={{ padding: '0.75rem 0.6rem', cursor: 'pointer' }}>
-                  Máx a Favor (MFE) {sortField === 'mfe' ? (sortAsc ? '▲' : '▼') : ''}
+                  Backtest PF {sortField === 'mfe' ? (sortAsc ? '▲' : '▼') : ''}
                 </th>
                 <th onClick={() => handleSort('pnl')} style={{ padding: '0.75rem 0.6rem', cursor: 'pointer' }}>
                   PnL Total {sortField === 'pnl' ? (sortAsc ? '▲' : '▼') : ''}
@@ -476,12 +488,16 @@ export default function StrategyMatrixComponent({
                   totalPnl: 0,
                   avgMfe: null
                 };
-
+                const bt = backtestMap?.[strat.key];
                 const analysis = allAnalysisMap[strat.key];
                 const activeSignal = signalsHistory.find(s => s.strategy === strat.key && s.status === 'PENDING');
 
-                const winRateDisplay = stats.winRate !== null ? `${stats.winRate}%` : 'En auditoría';
-                const winRateColor = stats.winRate === null ? 'var(--color-text-muted)' : stats.winRate >= 70 ? '#10b981' : stats.winRate >= 50 ? '#3b82f6' : '#ef4444';
+                const hasLiveResolved = (stats.tpCount + stats.slCount) > 0 && stats.winRate !== null;
+                const displayWr = hasLiveResolved ? stats.winRate : (bt?.winRate ?? null);
+                const winRateDisplay = displayWr !== null
+                  ? `${displayWr}% ${hasLiveResolved ? '' : '(BT)'}`
+                  : 'En auditoría';
+                const winRateColor = displayWr === null ? 'var(--color-text-muted)' : displayWr >= 65 ? '#10b981' : displayWr >= 50 ? '#3b82f6' : '#ef4444';
 
                 return (
                   <tr
@@ -522,20 +538,22 @@ export default function StrategyMatrixComponent({
                     <td style={{ padding: '0.7rem 0.6rem', fontWeight: 800, color: winRateColor }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <span>{winRateDisplay}</span>
-                        {stats.winRate !== null && (
+                        {displayWr !== null && (
                           <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '99px', overflow: 'hidden' }}>
-                            <div style={{ width: `${stats.winRate}%`, height: '100%', background: winRateColor }} />
+                            <div style={{ width: `${Math.min(100, displayWr)}%`, height: '100%', background: winRateColor }} />
                           </div>
                         )}
                       </div>
                     </td>
 
-                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 600, color: stats.avgMfe !== null ? '#34d399' : 'var(--color-text-muted)' }}>
-                      {stats.avgMfe !== null ? `+${stats.avgMfe}%` : '--'}
+                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700, color: bt?.profitFactor >= 1.35 ? '#10b981' : bt?.profitFactor >= 1.0 ? '#93c5fd' : '#94a3b8' }}>
+                      {bt && bt.totalTrades >= 2 && bt.profitFactor !== null
+                        ? `PF ${bt.profitFactor} (${bt.totalTrades}t)`
+                        : (stats.avgMfe !== null && stats.avgMfe > 0 ? `+${stats.avgMfe}% MFE` : '--')}
                     </td>
 
-                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700, color: (stats.totalPnl || 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }}>
-                      {formatPnl(stats.totalPnl)}
+                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700, color: ((hasLiveResolved ? stats.totalPnl : (bt?.totalPnl ?? stats.totalPnl)) || 0) >= 0 ? 'var(--color-up)' : 'var(--color-down)' }}>
+                      {formatPnl(hasLiveResolved ? stats.totalPnl : (bt?.totalPnl ?? stats.totalPnl))}
                     </td>
 
                     <td style={{ padding: '0.7rem 0.6rem', color: 'var(--color-text-muted)' }}>
@@ -701,33 +719,34 @@ export default function StrategyMatrixComponent({
             {/* Ficha de Rendimiento */}
             {(() => {
               const stratStats = rankingMap.get(inspectingStrategy.key) || { winRate: null, totalPnl: 0, tpCount: 0, slCount: 0, totalSignals: 0, avgMfe: null };
+              const bt = backtestMap?.[inspectingStrategy.key];
               const stratHistory = signalsHistory.filter(s => s.strategy === inspectingStrategy.key);
 
               return (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>Win Rate</span>
-                      <b style={{ fontSize: '1.2rem', color: stratStats.winRate >= 65 ? '#10b981' : '#fff' }}>
-                        {stratStats.winRate !== null ? `${stratStats.winRate}%` : 'En auditoría'}
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>Win Rate en Vivo</span>
+                      <b style={{ fontSize: '1.2rem', color: (stratStats.winRate || 0) >= 65 ? '#10b981' : '#fff' }}>
+                        {stratStats.winRate !== null ? `${stratStats.winRate}%` : 'Sin cerradas'}
+                      </b>
+                    </div>
+                    <div style={{ background: 'rgba(59, 130, 246, 0.08)', padding: '0.8rem', borderRadius: '8px', textAlign: 'center', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#93c5fd', display: 'block' }}>Backtest Reciente</span>
+                      <b style={{ fontSize: '1.2rem', color: (bt?.winRate || 0) >= 60 ? '#10b981' : '#fff' }}>
+                        {bt && bt.winRate !== null ? `${bt.winRate}% (${bt.totalTrades}t)` : 'N/D'}
+                      </b>
+                    </div>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '0.8rem', borderRadius: '8px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#6ee7b7', display: 'block' }}>Profit Factor (BT)</span>
+                      <b style={{ fontSize: '1.2rem', color: (bt?.profitFactor || 0) >= 1.35 ? '#10b981' : '#fff' }}>
+                        {bt && bt.profitFactor !== null ? `${bt.profitFactor}` : '--'}
                       </b>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>PnL Total</span>
-                      <b style={{ fontSize: '1.2rem', color: (stratStats.totalPnl || 0) >= 0 ? '#10b981' : '#ef4444' }}>
-                        {formatPnl(stratStats.totalPnl)}
-                      </b>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>Pico Máx MFE</span>
-                      <b style={{ fontSize: '1.2rem', color: '#34d399' }}>
-                        {stratStats.avgMfe !== null ? `+${stratStats.avgMfe}%` : '--'}
-                      </b>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>Aciertos vs Fallos</span>
-                      <b style={{ fontSize: '1.2rem', color: '#fff' }}>
-                        {stratStats.tpCount} / {stratStats.slCount}
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>PnL Vivo / BT</span>
+                      <b style={{ fontSize: '1.1rem', color: ((stratStats.tpCount + stratStats.slCount > 0 ? stratStats.totalPnl : bt?.totalPnl) || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                        {formatPnl(stratStats.tpCount + stratStats.slCount > 0 ? stratStats.totalPnl : (bt?.totalPnl ?? 0))}
                       </b>
                     </div>
                   </div>

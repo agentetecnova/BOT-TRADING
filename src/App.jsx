@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import technicalAnalysisService from './services/TechnicalAnalysisService';
+import marketDataService from './services/MarketDataService';
+import backtestEngine from './services/BacktestEngine';
+import predictiveOracleService from './services/PredictiveOracleService';
 import BTCMasterSheet from './components/BTCMasterSheet';
 import BTCDivergenceQuantSheet from './components/BTCDivergenceQuantSheet';
 import SignalHistoryService from './services/SignalHistoryService';
 import StrategyRankingComponent from './components/StrategyRankingComponent';
 import StrategyGridComponent from './components/StrategyGridComponent';
 import StrategyMatrixComponent from './components/StrategyMatrixComponent';
+import DecisionOraclePanel from './components/DecisionOraclePanel';
 import LiveTradesComponent from './components/LiveTradesComponent';
 import './App.css';
 
@@ -27,7 +31,7 @@ class SheetErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div style={{ padding: '2.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px', color: '#ef4444', textAlign: 'center', margin: '1rem 0' }}>
-          <h3>⚠️ Advertencia en el Componente de Hoja 2</h3>
+          <h3>⚠️ Advertencia al cargar esta sección</h3>
           <p style={{ fontSize: '0.85rem', color: '#fca5a5', marginTop: '0.5rem' }}>
             {this.state.error ? this.state.error.message : 'Error inesperado'}
           </p>
@@ -92,11 +96,22 @@ export default function App() {
   const [analysisError, setAnalysisError] = useState(null);
   const [marketRegime, setMarketRegime] = useState(null);
   const [magneticZones, setMagneticZones] = useState(null);
+  const [backtestMap, setBacktestMap] = useState({});
+  const [oraclePrediction, setOraclePrediction] = useState(null);
 
   // Signals History state
   const [signalsHistory, setSignalsHistory] = useState(() => SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup'));
   const [selectedStratFilter, setSelectedStratFilter] = useState('ALL');
   const [dateRangeFilter, setDateRangeFilter] = useState('ALL');
+
+  // Fresh refs to prevent stale closures inside 30s analysis polling
+  const btcPriceRef = useRef(null);
+  const cvd5mRef = useRef(0);
+  const signalsHistoryRef = useRef(signalsHistory);
+
+  useEffect(() => { btcPriceRef.current = btcPrice; }, [btcPrice]);
+  useEffect(() => { cvd5mRef.current = cvd5m; }, [cvd5m]);
+  useEffect(() => { signalsHistoryRef.current = signalsHistory; }, [signalsHistory]);
 
   // Auto-scroll logs
   const consoleRef = useRef(null);
@@ -116,9 +131,9 @@ export default function App() {
       try {
         const localCache = SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup');
         const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const urlsToTry = isLocalHost 
+        const urlsToTry = isLocalHost
           ? ['http://localhost:3000/api/signals/sync', 'https://bot-trading-2.onrender.com/api/signals/sync']
-          : ['https://bot-trading-2.onrender.com/api/signals/sync', 'http://localhost:3000/api/signals/sync'];
+          : ['https://bot-trading-2.onrender.com/api/signals/sync'];
 
         let res = null;
         for (const url of urlsToTry) {
@@ -210,33 +225,12 @@ export default function App() {
           const delta = q * p * (isSell ? -1 : 1);
           tradesRef.current.push({ timestamp: Date.now(), delta });
 
-          // Fallback simulation for liquidations if Binance Futures WS is blocked/failed/disconnected
+          // Log real whale spot trades (>= $80,000) honestly without fabricating fake liquidations
           if (futuresStatusRef.current !== 'connected') {
             const tradeAmount = q * p;
-            let prob = 0;
-            if (tradeAmount > 80000) prob = 0.85;
-            else if (tradeAmount > 40000) prob = 0.40;
-            else if (tradeAmount > 20000) prob = 0.15;
-
-            if (prob > 0 && Math.random() < prob) {
-              const type = isSell ? 'LONG' : 'SHORT'; // selling pressure = LONG liquidation, buying pressure = SHORT liquidation
-              const amount = tradeAmount * (0.4 + Math.random() * 0.8);
-              
-              const newLiq = {
-                id: `sim_${Date.now()}_${Math.random()}`,
-                timestamp: Date.now(),
-                type,
-                amount,
-                price: p,
-                isSimulated: true
-              };
-
-              liqsRef.current.push(newLiq);
-
-              if (amount >= 5000) {
-                setRecentLiqs(prev => [newLiq, ...prev].slice(0, 5));
-                addLog('Liquidación (Sim)', `🔥 ${type} liqu. $${Math.round(amount).toLocaleString()} a $${p.toLocaleString()} (Simulado)`, type === 'LONG' ? 'down' : 'up');
-              }
+            if (tradeAmount >= 80000) {
+              const whaleSide = isSell ? 'VENTA BALLENA' : 'COMPRA BALLENA';
+              addLog('Flujo Spot', `🐋 ${whaleSide} $${Math.round(tradeAmount).toLocaleString()} a $${p.toLocaleString()}`, isSell ? 'down' : 'up');
             }
           }
         }
@@ -422,6 +416,16 @@ export default function App() {
         technicalAnalysisService.fetchKlines('BTCUSDT', '1w', 50)
       ]);
 
+      const spotClose = k5m && k5m.length > 0 ? parseFloat(k5m[k5m.length - 1].close) : null;
+      const livePrice = btcPriceRef.current || spotClose;
+      if (!btcPriceRef.current && spotClose) {
+        setBtcPrice(spotClose);
+        btcPriceRef.current = spotClose;
+      }
+
+      const marketContext = await marketDataService.fetchMarketContext(livePrice);
+      const liveCvd = cvd5mRef.current || (k5m && k5m.length > 0 ? Math.round(k5m[k5m.length - 1].volumeDeltaUsd || 0) : 0);
+
       const res1 = technicalAnalysisService.runStrategy1(k15m);
       
       const klinesMap = {
@@ -453,7 +457,7 @@ export default function App() {
       const res8 = technicalAnalysisService.runStrategy8(k1h);
       const res9 = technicalAnalysisService.runStrategy9(k4h);
       const res10 = technicalAnalysisService.runStrategy10(k1h);
-      const res11 = technicalAnalysisService.runStrategy11(k5m, 0);
+      const res11 = technicalAnalysisService.runStrategy11(k5m, liveCvd);
       const res12 = technicalAnalysisService.runStrategy12(k5m);
       const res13 = technicalAnalysisService.runStrategy13(k15m);
 
@@ -470,12 +474,12 @@ export default function App() {
       const res23 = technicalAnalysisService.runStrategy23(klinesMap);
       const res24 = technicalAnalysisService.runStrategy24(k15m);
 
-      // Run Strategies 26 to 59
-      const res26 = technicalAnalysisService.runStrategy26(k1h);
+      // Run Strategies 26 to 59 with live CVD and real marketContext
+      const res26 = technicalAnalysisService.runStrategy26(k1h, marketContext?.fundingRate ?? null, marketContext);
       const res27 = technicalAnalysisService.runStrategy27(k15m);
       const res28 = technicalAnalysisService.runStrategy28(k1h, k1d);
       const res29 = technicalAnalysisService.runStrategy29(k1h, k15m);
-      const res30 = technicalAnalysisService.runStrategy30(k5m, cvd5m);
+      const res30 = technicalAnalysisService.runStrategy30(k5m, liveCvd);
       const res31 = technicalAnalysisService.runStrategy31(k15m);
       const res32 = technicalAnalysisService.runStrategy32(k1h);
       const res33 = technicalAnalysisService.runStrategy33(k15m);
@@ -490,21 +494,21 @@ export default function App() {
       const res42 = technicalAnalysisService.runStrategy42(k15m);
       const res43 = technicalAnalysisService.runStrategy43(k4h);
       const res44 = technicalAnalysisService.runStrategy44(k1h);
-      const res45 = technicalAnalysisService.runStrategy45(k1h);
-      const res46 = technicalAnalysisService.runStrategy46(k1h);
+      const res45 = technicalAnalysisService.runStrategy45(k1h, marketContext?.fundingRate ?? null, marketContext);
+      const res46 = technicalAnalysisService.runStrategy46(k1h, marketContext);
       const res47 = technicalAnalysisService.runStrategy47(k1h);
       const res48 = technicalAnalysisService.runStrategy48(k4h, k1d);
       const res49 = technicalAnalysisService.runStrategy49(k1h, k4h);
       const res50 = technicalAnalysisService.runStrategy50(k1d);
-      const res51 = technicalAnalysisService.runStrategy51(k15m, btcPrice);
-      const res52 = technicalAnalysisService.runStrategy52(k5m, k15m, cvd5m);
+      const res51 = technicalAnalysisService.runStrategy51(k15m, livePrice, marketContext);
+      const res52 = technicalAnalysisService.runStrategy52(k5m, k15m, liveCvd, marketContext);
       const res53 = technicalAnalysisService.runStrategy53(k15m);
       const res54 = technicalAnalysisService.runStrategy54(k5m);
-      const res55 = technicalAnalysisService.runStrategy55(k15m, k1h);
-      const res56 = technicalAnalysisService.runStrategy56(k15m, cvd5m);
-      const res57 = technicalAnalysisService.runStrategy57(k5m, cvd5m);
+      const res55 = technicalAnalysisService.runStrategy55(k15m, k1h, marketContext);
+      const res56 = technicalAnalysisService.runStrategy56(k15m, liveCvd, marketContext);
+      const res57 = technicalAnalysisService.runStrategy57(k5m, liveCvd);
       const res58 = technicalAnalysisService.runStrategy58(klinesMap);
-      const res59 = technicalAnalysisService.runStrategy59(k1h);
+      const res59 = technicalAnalysisService.runStrategy59(k1h, marketContext?.fundingRate ?? null, marketContext);
 
       const partialResults = {
         'Estrategia 1': res1, 'Estrategia 2': res2, 'Estrategia 3': res3, 'Estrategia 4': res4, 'Estrategia 5': res5,
@@ -521,8 +525,12 @@ export default function App() {
         'Estrategia 56': res56, 'Estrategia 57': res57, 'Estrategia 58': res58, 'Estrategia 59': res59
       };
 
-      const res25 = technicalAnalysisService.runStrategy25(partialResults);
-      const res60 = technicalAnalysisService.runStrategy60(partialResults, signalsHistory);
+      // Walk-forward historical backtest on downloaded candles (cached per candle close)
+      const btStats = backtestEngine.runFullBacktest({ k5m, k15m, k1h, k4h, k1d });
+      setBacktestMap(btStats);
+
+      const res25 = technicalAnalysisService.runStrategy25(partialResults, livePrice, btStats, marketContext);
+      const res60 = technicalAnalysisService.runStrategy60(partialResults, signalsHistoryRef.current, btStats, livePrice, marketContext);
       const resultsMap = { ...partialResults, 'Estrategia 25': res25, 'Estrategia 60': res60 };
 
       setStrat1Data(res1);
@@ -541,15 +549,32 @@ export default function App() {
       setAllAnalysisMap(resultsMap);
       setAnalysisError(null);
 
-      // Calcular Consenso Maestro de forma transparente e independiente
-      const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap);
+      // Calcular Consenso Maestro ponderado por backtest y microestructura real
+      const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap, btStats, marketContext);
       setMasterConsensusData(masterConsensus);
 
-      // Calcular Régimen de Mercado y Zonas Magnéticas
+      // Calcular Régimen de Mercado y Zonas Magnéticas reales
       const regime = technicalAnalysisService.calculateMarketRegime(klinesMap);
-      const magnetic = technicalAnalysisService.calculateMagneticZones(klinesMap, btcPrice);
+      const magnetic = technicalAnalysisService.calculateMagneticZones(klinesMap, livePrice, marketContext);
       setMarketRegime(regime);
       setMagneticZones(magnetic);
+
+      // Generar Predicción Unificada del Oráculo (fácil de leer para tomar decisiones)
+      const oracle = predictiveOracleService.generateOraclePrediction({
+        currentPrice: livePrice,
+        k15m,
+        k1h,
+        k4h,
+        k1d,
+        k1w,
+        cvd5m: liveCvd,
+        masterConsensus,
+        marketRegime: regime,
+        magneticZones: magnetic,
+        backtestStatsMap: btStats,
+        marketContext
+      });
+      setOraclePrediction(oracle);
 
       // Procesar nuevas señales para las 60 estrategias
       Object.entries(resultsMap).forEach(([stratName, res]) => {
@@ -882,10 +907,10 @@ export default function App() {
                 )}
               </div>
 
-              {/* Render Server status pill */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: renderServerStatus === 'connected' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', padding: '0.6rem 1rem', borderRadius: '12px', border: `1px solid ${renderServerStatus === 'connected' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`, fontSize: '0.8rem', fontWeight: 700, color: renderServerStatus === 'connected' ? '#10b981' : '#f59e0b' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: renderServerStatus === 'connected' ? '#10b981' : '#f59e0b', display: 'inline-block' }}></span>
-                {renderServerStatus === 'connected' ? '🟢 Motor 24/7 Activo' : '🟡 Servidor Sincronizando...'}
+              {/* Render / Live Engine status pill */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.6rem 1rem', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '0.8rem', fontWeight: 700, color: '#10b981' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                {renderServerStatus === 'connected' ? '🟢 Nube 24/7 + Binance' : '🟢 Motor Binance en Vivo'}
               </div>
             </div>
           </header>
@@ -904,90 +929,15 @@ export default function App() {
             </div>
           )}
 
-          {/* ⭐ PANEL DE RESUMEN: SEÑAL MAESTRA POR CONSENSO (60 MODELOS) */}
-          <div className="glass-panel" style={{
-            padding: '1.25rem 1.5rem',
-            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.65) 100%)',
-            border: '1px solid rgba(245, 158, 11, 0.25)',
-            borderRadius: '16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '1.2rem' }}>⭐</span>
-                  <h2 style={{ fontSize: '1.15rem', color: '#fff', margin: 0, fontWeight: 700 }}>
-                    Resumen de Consenso Institucional & Señal Maestra (60 Modelos Cuantitativos)
-                  </h2>
-                  <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
-                    Quant Ensemble
-                  </span>
-                </div>
-                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
-                  Evaluación agregada de confluencia entre las 60 estrategias cuantitativas en tiempo real.
-                </p>
-              </div>
-            </div>
-
-            {masterConsensusData ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'center' }}>
-                {/* Consenso Direccional */}
-                <div style={{ padding: '0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Sesgo Global Agregado</span>
-                  <div style={{ fontSize: '1rem', fontWeight: 800, marginTop: '0.2rem', color: masterConsensusData.masterSignal ? (masterConsensusData.masterSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)') : '#cbd5e1' }}>
-                    {masterConsensusData.bias}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
-                    Probabilidad promedio: <strong style={{ color: '#fff' }}>{masterConsensusData.avgPUp}% Alcista</strong> / {masterConsensusData.avgPDown}% Bajista
-                  </div>
-                </div>
-
-                {/* Votación de Estrategias */}
-                <div style={{ padding: '0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Votación de Estrategias</span>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.3rem' }}>
-                    <span style={{ color: 'var(--color-up)', fontWeight: 800, fontSize: '1.1rem' }}>
-                      🟢 {masterConsensusData.longVotes} LONG
-                    </span>
-                    <span style={{ color: 'var(--color-down)', fontWeight: 800, fontSize: '1.1rem' }}>
-                      🔴 {masterConsensusData.shortVotes} SHORT
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>
-                    Convicción: <strong style={{ color: '#f59e0b' }}>{masterConsensusData.conviction}</strong>
-                  </div>
-                </div>
-
-                {/* Estado de la Señal Maestra */}
-                <div style={{ padding: '0.9rem', background: masterConsensusData.hasConsensus ? (masterConsensusData.masterSignal && masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.05)' : 'rgba(255, 23, 68, 0.05)') : 'rgba(255,255,255,0.015)', border: `1px solid ${masterConsensusData.hasConsensus ? (masterConsensusData.masterSignal && masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)') : 'rgba(255,255,255,0.03)'}`, borderRadius: '12px' }}>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Señal Maestra de Alta Confluencia</span>
-                  {masterConsensusData.hasConsensus && masterConsensusData.masterSignal ? (
-                    <div style={{ marginTop: '0.2rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ padding: '0.2rem 0.5rem', borderRadius: '6px', background: masterConsensusData.masterSignal.type === 'LONG' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)', color: masterConsensusData.masterSignal.type === 'LONG' ? 'var(--color-up)' : 'var(--color-down)', fontWeight: 800, fontSize: '0.9rem' }}>
-                          {masterConsensusData.masterSignal.type} MASTER
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
-                          {masterConsensusData.masterSignal.agreeingCount} Estrategias en Confluencia
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.3rem' }}>
-                        Alineadas: {masterConsensusData.masterSignal.agreeingStrategies.join(', ')}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.3rem' }}>
-                      ⚪ Esperando confluencia de 3+ estrategias en 2+ familias distintas...
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Cargando análisis de consenso...</div>
-            )}
-          </div>
+          {/* 🎯 PANEL DE DECISIÓN CLARA (PREDICCIÓN UNIFICADA Y PLAN DE OPERACIÓN) */}
+          <DecisionOraclePanel
+            oracleData={oraclePrediction}
+            marketRegime={marketRegime}
+            onSelectStrategy={(stratKey) => {
+              setSelectedStratFilter(stratKey);
+              setActiveTab('history');
+            }}
+          />
 
           {/* TAB SYSTEM NAV SELECTOR */}
           <div className="tab-switcher" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
@@ -1076,6 +1026,7 @@ export default function App() {
             <StrategyMatrixComponent
               signalsHistory={signalsHistory}
               allAnalysisMap={allAnalysisMap}
+              backtestMap={backtestMap}
               btcPrice={btcPrice}
               analysisLoading={analysisLoading}
               marketRegime={marketRegime}

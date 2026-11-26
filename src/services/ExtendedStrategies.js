@@ -660,42 +660,52 @@ export class ExtendedStrategies {
   }
 
   static runStrategy43(candles4h) {
-    if (!candles4h || candles4h.length < 30) return { success: false, error: 'Datos insuficientes E43' };
+    if (!candles4h || candles4h.length < 40) return { success: false, error: 'Datos insuficientes E43' };
     const lastPrice = parseFloat(candles4h[candles4h.length - 1].close);
     const prices = candles4h.map(c => parseFloat(c.close));
     const ma20 = prices.slice(prices.length - 20).reduce((a, b) => a + b, 0) / 20;
-    const isBullTrend = lastPrice > ma20;
+
+    // Historical Volatility (20-bar stdev of returns) percentile vs last 40 bars
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+      returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
+    }
+    const hvRecent = returns.slice(-10).reduce((a, b) => a + Math.abs(b), 0) / 10;
+    const hvBaseline = returns.slice(-35, -10).reduce((a, b) => a + Math.abs(b), 0) / 25;
+    const isHvpBreakout = hvBaseline > 0 && hvRecent > hvBaseline * 1.15;
+    const isBullBreak = lastPrice > ma20 * 1.012 && prices[prices.length - 2] <= ma20 * 1.012;
+    const isBearBreak = lastPrice < ma20 * 0.988 && prices[prices.length - 2] >= ma20 * 0.988;
 
     let hasSignal = false;
     let signal = null;
 
-    if (isBullTrend && (lastPrice - ma20) / ma20 > 0.02) {
+    if (isHvpBreakout && isBullBreak) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
         type: 'LONG',
         entry,
         sl: ma20 * 0.99,
-        tp: entry * 1.035,
-        riskPercent: 1.5,
-        profitPercent: 3.5,
-        reasons: ['HVP Squeeze 4H: Expansión tendencial macro sobre media móvil 20']
+        tp: entry * 1.032,
+        riskPercent: 1.4,
+        profitPercent: 3.2,
+        reasons: ['HVP Squeeze 4H: Ruptura de compresión histórica al alza sobre MA 20']
       };
-    } else if (!isBullTrend && (ma20 - lastPrice) / ma20 > 0.02) {
+    } else if (isHvpBreakout && isBearBreak) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
         type: 'SHORT',
         entry,
         sl: ma20 * 1.01,
-        tp: entry * 0.965,
-        riskPercent: 1.5,
-        profitPercent: 3.5,
-        reasons: ['HVP Squeeze 4H: Expansión tendencial macro bajo media móvil 20']
+        tp: entry * 0.968,
+        riskPercent: 1.4,
+        profitPercent: 3.2,
+        reasons: ['HVP Squeeze 4H: Ruptura de compresión histórica a la baja bajo MA 20']
       };
     }
-    const pUp = isBullTrend ? 65 : 35;
-    return { success: true, pUp, pDown: 100 - pUp, bias: isBullTrend ? 'HVP TENDENCIA ALCISTA' : 'HVP TENDENCIA BAJISTA', hasSignal, signal, reasons: [`MA 20 (4H): $${Math.round(ma20)}`] };
+    const pUp = lastPrice > ma20 ? 63 : 37;
+    return { success: true, pUp, pDown: 100 - pUp, bias: lastPrice > ma20 ? 'HVP TENDENCIA ALCISTA' : 'HVP TENDENCIA BAJISTA', hasSignal, signal, reasons: [`MA 20 (4H): $${Math.round(ma20)}`] };
   }
 
   static runStrategy44(candles1h) {
@@ -703,8 +713,10 @@ export class ExtendedStrategies {
     const lastPrice = parseFloat(candles1h[candles1h.length - 1].close);
     const cClose = parseFloat(candles1h[candles1h.length - 1].close);
     const cOpen = parseFloat(candles1h[candles1h.length - 1].open);
-    const isBullThrust = cClose > cOpen * 1.008;
-    const isBearThrust = cClose < cOpen * 0.992;
+    const roc = this.calculateROC(candles1h.map(c => parseFloat(c.close)), 6);
+    const lastRoc = roc[roc.length - 1] || 0;
+    const isBullThrust = cClose > cOpen * 1.008 && lastRoc > 0.8;
+    const isBearThrust = cClose < cOpen * 0.992 && lastRoc < -0.8;
 
     let hasSignal = false;
     let signal = null;
@@ -719,7 +731,7 @@ export class ExtendedStrategies {
         tp: entry * 1.02,
         riskPercent: 0.8,
         profitPercent: 2.0,
-        reasons: ['Chaikin Momentum Thrust: Impulso de aceleración volumétrica alcista']
+        reasons: [`Chaikin Momentum Thrust: Impulso alcista confirmado (ROC: +${lastRoc.toFixed(2)}%)`]
       };
     } else if (isBearThrust) {
       hasSignal = true;
@@ -731,18 +743,24 @@ export class ExtendedStrategies {
         tp: entry * 0.98,
         riskPercent: 0.8,
         profitPercent: 2.0,
-        reasons: ['Chaikin Momentum Thrust: Impulso de aceleración volumétrica bajista']
+        reasons: [`Chaikin Momentum Thrust: Impulso bajista confirmado (ROC: ${lastRoc.toFixed(2)}%)`]
       };
     }
     const pUp = isBullThrust ? 68 : isBearThrust ? 32 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: isBullThrust ? 'THRUST ALCISTA' : isBearThrust ? 'THRUST BAJISTA' : 'CONSOLIDACIÓN', hasSignal, signal, reasons: [`Spot: $${lastPrice.toLocaleString()}`] };
+    return { success: true, pUp, pDown: 100 - pUp, bias: isBullThrust ? 'THRUST ALCISTA' : isBearThrust ? 'THRUST BAJISTA' : 'CONSOLIDACIÓN', hasSignal, signal, reasons: [`ROC 6H: ${lastRoc.toFixed(2)}%`] };
   }
 
-  static runStrategy45(candles1h, fundingRate = 0.0001) {
+  static runStrategy45(candles1h, fundingRate = null, marketContext = null) {
     if (!candles1h || candles1h.length < 30) return { success: false, error: 'Datos insuficientes E45' };
     const lastPrice = parseFloat(candles1h[candles1h.length - 1].close);
-    const isNegative = fundingRate < -0.0001;
-    const isPositive = fundingRate > 0.00035;
+    const realFunding = fundingRate !== null ? fundingRate : (marketContext?.fundingRate ?? null);
+    const oiDelta = marketContext?.oiChangePct ?? null;
+
+    const cci = this.calculateCCI(candles1h, 20);
+    const lastCci = cci[cci.length - 1] || 0;
+
+    const isNegative = realFunding !== null ? (realFunding < -0.00008 && lastCci < -80) : (lastCci < -160);
+    const isPositive = realFunding !== null ? (realFunding > 0.0003 && lastCci > 80) : (lastCci > 160);
 
     let hasSignal = false;
     let signal = null;
@@ -757,7 +775,7 @@ export class ExtendedStrategies {
         tp: entry * 1.028,
         riskPercent: 1.2,
         profitPercent: 2.8,
-        reasons: ['Derivatives Short Squeeze: Funding rate negativo extremo y saturación de cortos']
+        reasons: [`Derivatives Short Squeeze: Funding ${realFunding !== null ? (realFunding * 100).toFixed(4) + '%' : 'extremo'} + CCI ${lastCci.toFixed(0)}`]
       };
     } else if (isPositive) {
       hasSignal = true;
@@ -769,24 +787,34 @@ export class ExtendedStrategies {
         tp: entry * 0.972,
         riskPercent: 1.2,
         profitPercent: 2.8,
-        reasons: ['Derivatives Long Squeeze: Funding rate sobrecalentado y sobrecompra apalancada']
+        reasons: [`Derivatives Long Squeeze: Funding sobrecalentado ${realFunding !== null ? (realFunding * 100).toFixed(4) + '%' : ''} + CCI ${lastCci.toFixed(0)}`]
       };
     }
     const pUp = isNegative ? 75 : isPositive ? 25 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'SHORT SQUEEZE' : pUp <= 40 ? 'LONG SQUEEZE' : 'EQUILIBRADO', hasSignal, signal, reasons: [`Funding Rate: ${(fundingRate * 100).toFixed(4)}%`] };
+    const fundingLabel = realFunding !== null ? `${(realFunding * 100).toFixed(4)}%` : `Proxy CCI: ${lastCci.toFixed(0)}`;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'SHORT SQUEEZE' : pUp <= 40 ? 'LONG SQUEEZE' : 'EQUILIBRADO', hasSignal, signal, reasons: [`Funding: ${fundingLabel}${oiDelta !== null ? ` | OI Δ: ${oiDelta}%` : ''}`] };
   }
 
-  static runStrategy46(candles1h) {
+  static runStrategy46(candles1h, marketContext = null) {
     if (!candles1h || candles1h.length < 30) return { success: false, error: 'Datos insuficientes E46' };
     const lastPrice = parseFloat(candles1h[candles1h.length - 1].close);
     const prices = candles1h.map(c => parseFloat(c.close));
-    const isOversold = prices[prices.length - 1] < prices[prices.length - 15] * 0.97;
-    const isOverbought = prices[prices.length - 1] > prices[prices.length - 15] * 1.03;
+    const mfi = this.calculateMFI(candles1h, 14);
+    const lastMfi = mfi[mfi.length - 1] ?? 50;
+
+    const retailLS = marketContext?.retailLongShortRatio ?? null;
+    const whaleLS = marketContext?.whaleLongShortRatio ?? null;
+
+    // Smart Money vs Retail Divergence: if whales are much more bullish than retail OR extreme capitulation
+    const isSmartBull = (retailLS !== null && whaleLS !== null && whaleLS > retailLS * 1.15 && lastMfi < 45)
+      || (prices[prices.length - 1] < prices[prices.length - 15] * 0.97 && lastMfi < 25);
+    const isSmartBear = (retailLS !== null && whaleLS !== null && retailLS > whaleLS * 1.25 && lastMfi > 55)
+      || (prices[prices.length - 1] > prices[prices.length - 15] * 1.03 && lastMfi > 75);
 
     let hasSignal = false;
     let signal = null;
 
-    if (isOversold) {
+    if (isSmartBull) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
@@ -796,9 +824,9 @@ export class ExtendedStrategies {
         tp: entry * 1.022,
         riskPercent: 1.0,
         profitPercent: 2.2,
-        reasons: ['Sentimiento Minorista Exhausto: Capitulación de ventas minoristas']
+        reasons: [`Sentimiento Ballenas vs Minoristas: Ballenas acumulando (MFI: ${lastMfi.toFixed(0)})`]
       };
-    } else if (isOverbought) {
+    } else if (isSmartBear) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
@@ -808,11 +836,12 @@ export class ExtendedStrategies {
         tp: entry * 0.978,
         riskPercent: 1.0,
         profitPercent: 2.2,
-        reasons: ['Sentimiento Minorista Exhausto: Euforia compradora en resistencia']
+        reasons: [`Sentimiento Euforia Minorista: Saturación compradora (MFI: ${lastMfi.toFixed(0)})`]
       };
     }
-    const pUp = isOversold ? 70 : isOverbought ? 30 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'SENTIMIENTO ALCISTA' : pUp <= 45 ? 'SENTIMIENTO BAJISTA' : 'NEUTRAL', hasSignal, signal, reasons: [`Spot 1H: $${lastPrice.toLocaleString()}`] };
+    const pUp = isSmartBull ? 72 : isSmartBear ? 28 : 50;
+    const ratioInfo = (retailLS !== null && whaleLS !== null) ? `L/S Ballenas ${whaleLS.toFixed(2)} vs Retail ${retailLS.toFixed(2)}` : `MFI 1H: ${lastMfi.toFixed(0)}`;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'SENTIMIENTO ALCISTA' : pUp <= 45 ? 'SENTIMIENTO BAJISTA' : 'NEUTRAL', hasSignal, signal, reasons: [ratioInfo] };
   }
 
   static runStrategy47(candles1h) {
@@ -901,12 +930,20 @@ export class ExtendedStrategies {
   }
 
   static runStrategy49(candles1h, candles4h) {
-    if (!candles1h || candles1h.length < 50) return { success: false, error: 'Datos insuficientes E49' };
+    if (!candles1h || candles1h.length < 55) return { success: false, error: 'Datos insuficientes E49' };
     const prices = candles1h.map(c => parseFloat(c.close));
     const lastPrice = prices[prices.length - 1];
-    const ma50 = prices.slice(prices.length - 50).reduce((a, b) => a + b, 0) / 50;
-    const isGolden = lastPrice > ma50 * 1.01;
-    const isDeath = lastPrice < ma50 * 0.99;
+    const kama = this.calculateKAMA(prices, 14, 2, 30);
+    const { viPlus, viMinus } = this.calculateVortex(candles1h, 14);
+    const lastKama = kama[kama.length - 1] || lastPrice;
+    const prevKama = kama[kama.length - 2] || lastKama;
+    const lastViP = viPlus[viPlus.length - 1] || 1;
+    const lastViM = viMinus[viMinus.length - 1] || 1;
+    const prevViP = viPlus[viPlus.length - 2] || 1;
+    const prevViM = viMinus[viMinus.length - 2] || 1;
+
+    const isGolden = lastPrice > lastKama && lastKama > prevKama && lastViP > lastViM && prevViP <= prevViM;
+    const isDeath = lastPrice < lastKama && lastKama < prevKama && lastViM > lastViP && prevViM <= prevViP;
 
     let hasSignal = false;
     let signal = null;
@@ -917,11 +954,11 @@ export class ExtendedStrategies {
       signal = {
         type: 'LONG',
         entry,
-        sl: ma50 * 0.995,
-        tp: entry * 1.03,
+        sl: Math.min(lastKama * 0.995, entry * 0.988),
+        tp: entry * 1.028,
         riskPercent: 1.2,
-        profitPercent: 3.0,
-        reasons: ['Golden Cross Velocity: Aceleración angular institucional sobre MA 50']
+        profitPercent: 2.8,
+        reasons: ['Golden Cross Velocity (KAMA + Vortex): Aceleración institucional alcista confirmada']
       };
     } else if (isDeath) {
       hasSignal = true;
@@ -929,15 +966,15 @@ export class ExtendedStrategies {
       signal = {
         type: 'SHORT',
         entry,
-        sl: ma50 * 1.005,
-        tp: entry * 0.97,
+        sl: Math.max(lastKama * 1.005, entry * 1.012),
+        tp: entry * 0.972,
         riskPercent: 1.2,
-        profitPercent: 3.0,
-        reasons: ['Death Cross Velocity: Aceleración angular institucional bajo MA 50']
+        profitPercent: 2.8,
+        reasons: ['Death Cross Velocity (KAMA + Vortex): Aceleración institucional bajista confirmada']
       };
     }
-    const pUp = isGolden ? 67 : isDeath ? 33 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: isGolden ? 'GOLDEN CROSS ALCISTA' : isDeath ? 'DEATH CROSS BAJISTA' : 'NEUTRAL', hasSignal, signal, reasons: [`MA 50 (1H): $${Math.round(ma50)}`] };
+    const pUp = (lastPrice > lastKama && lastViP > lastViM) ? 67 : (lastPrice < lastKama && lastViM > lastViP) ? 33 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'GOLDEN CROSS ALCISTA' : pUp <= 40 ? 'DEATH CROSS BAJISTA' : 'NEUTRAL', hasSignal, signal, reasons: [`KAMA (1H): $${Math.round(lastKama)} | Vortex: ${lastViP.toFixed(2)}/${lastViM.toFixed(2)}`] };
   }
 
   static runStrategy50(candles1d) {
@@ -985,56 +1022,63 @@ export class ExtendedStrategies {
   // LAS 10 ESTRATEGIAS PROPIETARIAS DEL EXPERTO (E51 A E60)
   // ==========================================
 
-  static runStrategy51(candles15m, lastBtcPrice = 0) {
+  static runStrategy51(candles15m, lastBtcPrice = 0, marketContext = null) {
     if (!candles15m || candles15m.length < 30) return { success: false, error: 'Datos insuficientes E51' };
     const lastPrice = lastBtcPrice || parseFloat(candles15m[candles15m.length - 1].close);
     const window = candles15m.slice(candles15m.length - 24);
-    const clusterHigh = Math.max(...window.map(c => parseFloat(c.high)));
-    const clusterLow = Math.min(...window.map(c => parseFloat(c.low)));
+    const clusterHigh = marketContext?.nearestSellWall?.price || Math.max(...window.map(c => parseFloat(c.high)));
+    const clusterLow = marketContext?.nearestBuyWall?.price || Math.min(...window.map(c => parseFloat(c.low)));
 
     const distToHigh = (clusterHigh - lastPrice) / lastPrice;
     const distToLow = (lastPrice - clusterLow) / lastPrice;
+    const tsi = this.calculateTSI(candles15m.map(c => parseFloat(c.close)), 20, 10);
+    const lastTsi = tsi[tsi.length - 1] || 0;
+    const prevTsi = tsi[tsi.length - 2] || 0;
+    const orderBookImb = marketContext?.orderBookImbalancePct ?? 0;
 
     let hasSignal = false;
     let signal = null;
 
-    if (distToHigh > 0.005 && distToHigh < 0.015) {
+    if (distToHigh > 0.004 && distToHigh < 0.016 && lastTsi > prevTsi && orderBookImb >= -5) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
         type: 'LONG',
         entry,
-        sl: entry * 0.993,
-        tp: clusterHigh * 1.002,
-        riskPercent: 0.7,
-        profitPercent: 1.6,
-        reasons: [`Imán de Liquidaciones: Atracción hacia cluster de posiciones cortas en $${Math.round(clusterHigh)}`]
+        sl: entry * 0.992,
+        tp: clusterHigh * 1.001,
+        riskPercent: 0.8,
+        profitPercent: Math.max(1.2, parseFloat((distToHigh * 100).toFixed(2))),
+        reasons: [`Imán de Liquidaciones: Empuje TSI hacia cluster/muro de cortos en $${Math.round(clusterHigh)}`]
       };
-    } else if (distToLow > 0.005 && distToLow < 0.015) {
+    } else if (distToLow > 0.004 && distToLow < 0.016 && lastTsi < prevTsi && orderBookImb <= 5) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
         type: 'SHORT',
         entry,
-        sl: entry * 1.007,
-        tp: clusterLow * 0.998,
-        riskPercent: 0.7,
-        profitPercent: 1.6,
-        reasons: [`Imán de Liquidaciones: Atracción hacia cluster de posiciones largas en $${Math.round(clusterLow)}`]
+        sl: entry * 1.008,
+        tp: clusterLow * 0.999,
+        riskPercent: 0.8,
+        profitPercent: Math.max(1.2, parseFloat((distToLow * 100).toFixed(2))),
+        reasons: [`Imán de Liquidaciones: Presión TSI hacia cluster/muro de largos en $${Math.round(clusterLow)}`]
       };
     }
-    const pUp = distToHigh < distToLow ? 76 : 24;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'IMÁN LIQUIDACIÓN ALCISTA' : 'IMÁN LIQUIDACIÓN BAJISTA', hasSignal, signal, reasons: [`Bolsillo Cortos: $${Math.round(clusterHigh)} | Bolsillo Largos: $${Math.round(clusterLow)}`] };
+    const pUp = (distToHigh < distToLow && lastTsi >= prevTsi) ? 72 : (distToLow < distToHigh && lastTsi <= prevTsi) ? 28 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'IMÁN LIQUIDACIÓN ALCISTA' : pUp <= 40 ? 'IMÁN LIQUIDACIÓN BAJISTA' : 'EN EQUILIBRIO', hasSignal, signal, reasons: [`Objetivo Cortos: $${Math.round(clusterHigh)} | Objetivo Largos: $${Math.round(clusterLow)}`] };
   }
 
-  static runStrategy52(candles5m, candles15m, cvd5m = 0) {
+  static runStrategy52(candles5m, candles15m, cvd5m = 0, marketContext = null) {
     if (!candles5m || candles5m.length < 20) return { success: false, error: 'Datos insuficientes E52' };
     const lastPrice = parseFloat(candles5m[candles5m.length - 1].close);
     const cClose = parseFloat(candles5m[candles5m.length - 1].close);
     const cOpen = parseFloat(candles5m[candles5m.length - 1].open);
 
-    const isSpotAccumulation = cvd5m < -50000 && cClose > cOpen;
-    const isSpotDistribution = cvd5m > 50000 && cClose < cOpen;
+    const spot15mDelta = (candles15m || candles5m).slice(-4).reduce((a, c) => a + (c.volumeDeltaUsd || 0), 0);
+    const perpDelta = marketContext?.perpCvd15mDelta ?? cvd5m;
+
+    const isSpotAccumulation = (spot15mDelta > 150000 && perpDelta < 0) || (cvd5m < -50000 && cClose > cOpen);
+    const isSpotDistribution = (spot15mDelta < -150000 && perpDelta > 0) || (cvd5m > 50000 && cClose < cOpen);
 
     let hasSignal = false;
     let signal = null;
@@ -1045,13 +1089,111 @@ export class ExtendedStrategies {
       signal = {
         type: 'LONG',
         entry,
+        sl: entry * 0.993,
+        tp: entry * 1.016,
+        riskPercent: 0.7,
+        profitPercent: 1.6,
+        reasons: [`Divergencia Spot vs Futuros: Spot compra (+$${Math.round(spot15mDelta / 1000)}k) mientras futuros vende ($${Math.round(perpDelta / 1000)}k)`]
+      };
+    } else if (isSpotDistribution) {
+      hasSignal = true;
+      const entry = lastPrice;
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl: entry * 1.007,
+        tp: entry * 0.984,
+        riskPercent: 0.7,
+        profitPercent: 1.6,
+        reasons: [`Divergencia Spot vs Futuros: Spot vende ($${Math.round(spot15mDelta / 1000)}k) mientras futuros compra (+$${Math.round(perpDelta / 1000)}k)`]
+      };
+    }
+    const pUp = isSpotAccumulation ? 78 : isSpotDistribution ? 22 : (spot15mDelta > 0 ? 56 : 44);
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'ABSORCIÓN SPOT ALCISTA' : pUp <= 40 ? 'DISTRIBUCIÓN SPOT BAJISTA' : 'FLUJO ALINEADO', hasSignal, signal, reasons: [`Delta Spot 15m: $${Math.round(spot15mDelta).toLocaleString()} | Perp: $${Math.round(perpDelta).toLocaleString()}`] };
+  }
+
+  static runStrategy53(candles15m) {
+    if (!candles15m || candles15m.length < 30) return { success: false, error: 'Datos insuficientes E53' };
+    const prices = candles15m.map(c => parseFloat(c.close));
+    const lastPrice = prices[prices.length - 1];
+    const window = candles15m.slice(candles15m.length - 20);
+    let tpv = 0, volSum = 0;
+    window.forEach(c => {
+      const tp = (parseFloat(c.high) + parseFloat(c.low) + parseFloat(c.close)) / 3;
+      const v = parseFloat(c.volume);
+      tpv += tp * v;
+      volSum += v;
+    });
+    const mean = volSum > 0 ? tpv / volSum : prices.slice(-20).reduce((a, b) => a + b, 0) / 20;
+    const variance = window.reduce((a, c) => a + Math.pow(parseFloat(c.close) - mean, 2), 0) / 20;
+    const stdDev = Math.sqrt(variance);
+
+    const zScore = stdDev > 0 ? (lastPrice - mean) / stdDev : 0;
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (zScore <= -2.4) {
+      hasSignal = true;
+      const entry = lastPrice;
+      signal = {
+        type: 'LONG',
+        entry,
+        sl: entry * 0.992,
+        tp: Math.max(mean, entry * 1.015),
+        riskPercent: 0.8,
+        profitPercent: 1.8,
+        reasons: [`VWAP 3-Sigma Gaussian Climax: Z-Score extremo (${zScore.toFixed(2)}σ). Reversión gaussiana al alza`]
+      };
+    } else if (zScore >= 2.4) {
+      hasSignal = true;
+      const entry = lastPrice;
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl: entry * 1.008,
+        tp: Math.min(mean, entry * 0.985),
+        riskPercent: 0.8,
+        profitPercent: 1.8,
+        reasons: [`VWAP 3-Sigma Gaussian Climax: Z-Score extremo (${zScore.toFixed(2)}σ). Reversión gaussiana a la baja`]
+      };
+    }
+    const pUp = zScore <= -1.8 ? 78 : zScore >= 1.8 ? 22 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? '3-SIGMA ALCISTA' : pUp <= 40 ? '3-SIGMA BAJISTA' : 'DISTRIBUCIÓN NORMAL', hasSignal, signal, reasons: [`Z-Score VWAP: ${zScore.toFixed(2)}σ | VWAP: $${Math.round(mean)}`] };
+  }
+
+  static runStrategy54(candles5m) {
+    if (!candles5m || candles5m.length < 25) return { success: false, error: 'Datos insuficientes E54' };
+    const lastPrice = parseFloat(candles5m[candles5m.length - 1].close);
+    const nowUtc = new Date().getUTCHours();
+    const isSilverBulletHour = (nowUtc >= 14 && nowUtc <= 16) || (nowUtc >= 7 && nowUtc <= 9) || (nowUtc === 18);
+
+    const c0 = candles5m[candles5m.length - 3];
+    const c2 = candles5m[candles5m.length - 1];
+    const recentLow = Math.min(...candles5m.slice(-15, -3).map(c => parseFloat(c.low)));
+    const recentHigh = Math.max(...candles5m.slice(-15, -3).map(c => parseFloat(c.high)));
+
+    const bullFvg = parseFloat(c2.low) > parseFloat(c0.high);
+    const bearFvg = parseFloat(c2.high) < parseFloat(c0.low);
+    const sweptLowRecently = Math.min(parseFloat(c0.low), parseFloat(candles5m[candles5m.length - 2].low)) <= recentLow;
+    const sweptHighRecently = Math.max(parseFloat(c0.high), parseFloat(candles5m[candles5m.length - 2].high)) >= recentHigh;
+
+    let hasSignal = false;
+    let signal = null;
+
+    if (isSilverBulletHour && bullFvg && sweptLowRecently) {
+      hasSignal = true;
+      const entry = lastPrice;
+      signal = {
+        type: 'LONG',
+        entry,
         sl: entry * 0.994,
         tp: entry * 1.015,
         riskPercent: 0.6,
         profitPercent: 1.5,
-        reasons: ['Divergencia Spot vs Futuros: Ballenas al contado absorben ventas del casino de derivados']
+        reasons: ['ICT Silver Bullet: Barrido de liquidez + Fair Value Gap alcista en ventana interbancaria']
       };
-    } else if (isSpotDistribution) {
+    } else if (isSilverBulletHour && bearFvg && sweptHighRecently) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
@@ -1061,106 +1203,22 @@ export class ExtendedStrategies {
         tp: entry * 0.985,
         riskPercent: 0.6,
         profitPercent: 1.5,
-        reasons: ['Divergencia Spot vs Futuros: Ballenas al contado distribuyen mientras futuros compran eufóricos']
+        reasons: ['ICT Silver Bullet: Barrido de liquidez + Fair Value Gap bajista en ventana interbancaria']
       };
     }
-    const pUp = isSpotAccumulation ? 80 : isSpotDistribution ? 20 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'ABSORCIÓN SPOT ALCISTA' : pUp <= 45 ? 'DISTRIBUCIÓN SPOT BAJISTA' : 'FLUJO ALINEADO', hasSignal, signal, reasons: [`Delta CVD: ${cvd5m.toLocaleString()} USD`] };
+    const pUp = (bullFvg && sweptLowRecently) ? 76 : (bearFvg && sweptHighRecently) ? 24 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: isSilverBulletHour ? (pUp >= 60 ? 'SILVER BULLET ALCISTA' : pUp <= 40 ? 'SILVER BULLET BAJISTA' : 'VENTANA ACTIVA') : 'FUERA DE VENTANA', hasSignal, signal, reasons: [`Ventana UTC: ${nowUtc}:00 (${isSilverBulletHour ? '🟢 ACTIVA' : '⚪ ESPERANDO'})`] };
   }
 
-  static runStrategy53(candles15m) {
-    if (!candles15m || candles15m.length < 30) return { success: false, error: 'Datos insuficientes E53' };
-    const prices = candles15m.map(c => parseFloat(c.close));
-    const lastPrice = prices[prices.length - 1];
-    const mean = prices.slice(prices.length - 20).reduce((a, b) => a + b, 0) / 20;
-    const variance = prices.slice(prices.length - 20).reduce((a, b) => a + Math.pow(b - mean, 2), 0) / 20;
-    const stdDev = Math.sqrt(variance);
-
-    const zScore = stdDev > 0 ? (lastPrice - mean) / stdDev : 0;
-
-    let hasSignal = false;
-    let signal = null;
-
-    if (zScore <= -2.6) {
-      hasSignal = true;
-      const entry = lastPrice;
-      signal = {
-        type: 'LONG',
-        entry,
-        sl: entry * 0.992,
-        tp: mean,
-        riskPercent: 0.8,
-        profitPercent: 1.9,
-        reasons: [`VWAP 3-Sigma Gaussian Climax: Z-Score extremo (${zScore.toFixed(2)}σ). Reversión gaussiana inminente`]
-      };
-    } else if (zScore >= 2.6) {
-      hasSignal = true;
-      const entry = lastPrice;
-      signal = {
-        type: 'SHORT',
-        entry,
-        sl: entry * 1.008,
-        tp: mean,
-        riskPercent: 0.8,
-        profitPercent: 1.9,
-        reasons: [`VWAP 3-Sigma Gaussian Climax: Z-Score extremo (${zScore.toFixed(2)}σ). Reversión gaussiana inminente`]
-      };
-    }
-    const pUp = zScore <= -2.0 ? 82 : zScore >= 2.0 ? 18 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? '3-SIGMA ALCISTA' : pUp <= 45 ? '3-SIGMA BAJISTA' : 'DISTRIBUCIÓN NORMAL', hasSignal, signal, reasons: [`Z-Score: ${zScore.toFixed(2)}σ | VWAP Base: $${Math.round(mean)}`] };
-  }
-
-  static runStrategy54(candles5m) {
-    if (!candles5m || candles5m.length < 25) return { success: false, error: 'Datos insuficientes E54' };
-    const lastPrice = parseFloat(candles5m[candles5m.length - 1].close);
-    const nowUtc = new Date().getUTCHours();
-    const isSilverBulletHour = (nowUtc >= 14 && nowUtc <= 16) || (nowUtc >= 7 && nowUtc <= 9);
-
-    const prev = candles5m[candles5m.length - 2];
-    const cur = candles5m[candles5m.length - 1];
-    const isBullSweep = parseFloat(cur.close) > parseFloat(cur.open) && parseFloat(prev.low) < parseFloat(cur.low);
-    const isBearSweep = parseFloat(cur.close) < parseFloat(cur.open) && parseFloat(prev.high) > parseFloat(cur.high);
-
-    let hasSignal = false;
-    let signal = null;
-
-    if (isSilverBulletHour && isBullSweep) {
-      hasSignal = true;
-      const entry = lastPrice;
-      signal = {
-        type: 'LONG',
-        entry,
-        sl: entry * 0.994,
-        tp: entry * 1.014,
-        riskPercent: 0.6,
-        profitPercent: 1.4,
-        reasons: ['ICT Silver Bullet Window: Ventana horaria interbancaria activa con FVG comprador']
-      };
-    } else if (isSilverBulletHour && isBearSweep) {
-      hasSignal = true;
-      const entry = lastPrice;
-      signal = {
-        type: 'SHORT',
-        entry,
-        sl: entry * 1.006,
-        tp: entry * 0.986,
-        riskPercent: 0.6,
-        profitPercent: 1.4,
-        reasons: ['ICT Silver Bullet Window: Ventana horaria interbancaria activa con FVG vendedor']
-      };
-    }
-    const pUp = isBullSweep ? 77 : isBearSweep ? 23 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: isSilverBulletHour ? (pUp >= 55 ? 'SILVER BULLET ALCISTA' : 'SILVER BULLET BAJISTA') : 'FUERA DE VENTANA', hasSignal, signal, reasons: [`Ventana Horaria UTC: ${nowUtc}:00 (${isSilverBulletHour ? '🟢 ACTIVA' : '🔴 INACTIVA'})`] };
-  }
-
-  static runStrategy55(candles15m, candles1h) {
+  static runStrategy55(candles15m, candles1h, marketContext = null) {
     if (!candles15m || candles15m.length < 25) return { success: false, error: 'Datos insuficientes E55' };
     const lastPrice = parseFloat(candles15m[candles15m.length - 1].close);
     const prices = candles15m.map(c => parseFloat(c.close));
     const momShort = prices[prices.length - 1] - prices[prices.length - 4];
 
-    const isCoinbaseLeadBull = momShort > lastPrice * 0.006;
-    const isCoinbaseLeadBear = momShort < -lastPrice * 0.006;
+    const realPremium = marketContext?.coinbasePremiumPct ?? null;
+    const isCoinbaseLeadBull = realPremium !== null ? realPremium >= 0.035 : (momShort > lastPrice * 0.008);
+    const isCoinbaseLeadBear = realPremium !== null ? realPremium <= -0.035 : (momShort < -lastPrice * 0.008);
 
     let hasSignal = false;
     let signal = null;
@@ -1175,7 +1233,7 @@ export class ExtendedStrategies {
         tp: entry * 1.018,
         riskPercent: 0.8,
         profitPercent: 1.8,
-        reasons: ['Coinbase Premium Index Lead-Lag: Flujo institucional americano lidera subida']
+        reasons: [`Coinbase Spot Premium Real (+${realPremium !== null ? realPremium.toFixed(3) : ((momShort / lastPrice) * 100).toFixed(2)}%): Demanda institucional de EE.UU. liderando`]
       };
     } else if (isCoinbaseLeadBear) {
       hasSignal = true;
@@ -1187,22 +1245,28 @@ export class ExtendedStrategies {
         tp: entry * 0.982,
         riskPercent: 0.8,
         profitPercent: 1.8,
-        reasons: ['Coinbase Premium Index Lead-Lag: Flujo institucional americano lidera caída']
+        reasons: [`Coinbase Spot Discount Real (${realPremium !== null ? realPremium.toFixed(3) : ((momShort / lastPrice) * 100).toFixed(2)}%): Presión vendedora institucional de EE.UU.`]
       };
     }
-    const pUp = isCoinbaseLeadBull ? 78 : isCoinbaseLeadBear ? 22 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'PREMIUM LEAD ALCISTA' : pUp <= 45 ? 'PREMIUM LEAD BAJISTA' : 'PARIDAD', hasSignal, signal, reasons: [`Índice de Prima Estimado: ${momShort > 0 ? '+' : ''}${((momShort / lastPrice) * 100).toFixed(2)}%`] };
+    const pUp = isCoinbaseLeadBull ? 78 : isCoinbaseLeadBear ? 22 : (realPremium !== null && realPremium > 0 ? 55 : realPremium !== null && realPremium < 0 ? 45 : 50);
+    const premDisplay = realPremium !== null ? `${realPremium >= 0 ? '+' : ''}${realPremium.toFixed(3)}% (Real)` : `${((momShort / lastPrice) * 100).toFixed(2)}% (Momentum)`;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'PREMIUM LEAD ALCISTA' : pUp <= 40 ? 'PREMIUM LEAD BAJISTA' : 'PARIDAD US/GLOBAL', hasSignal, signal, reasons: [`Coinbase Premium: ${premDisplay}`] };
   }
 
-  static runStrategy56(candles15m, cvd5m = 0) {
+  static runStrategy56(candles15m, cvd5m = 0, marketContext = null) {
     if (!candles15m || candles15m.length < 30) return { success: false, error: 'Datos insuficientes E56' };
     const lastPrice = parseFloat(candles15m[candles15m.length - 1].close);
-    const window = candles15m.slice(candles15m.length - 20);
+    const lastCandle = candles15m[candles15m.length - 1];
+    const window = candles15m.slice(candles15m.length - 22, candles15m.length - 1);
     const low = Math.min(...window.map(c => parseFloat(c.low)));
     const high = Math.max(...window.map(c => parseFloat(c.high)));
 
-    const isSweepLow = lastPrice <= low * 1.002 && cvd5m < 0;
-    const isSweepHigh = lastPrice >= high * 0.998 && cvd5m > 0;
+    const wr = this.calculateWilliamsR(candles15m, 14);
+    const lastWr = wr[wr.length - 1] ?? -50;
+    const effectiveCvd = cvd5m !== 0 ? cvd5m : (lastCandle.volumeDeltaUsd || 0);
+
+    const isSweepLow = parseFloat(lastCandle.low) <= low && lastPrice > low && lastWr < -65 && effectiveCvd > -200000;
+    const isSweepHigh = parseFloat(lastCandle.high) >= high && lastPrice < high && lastWr > -35 && effectiveCvd < 200000;
 
     let hasSignal = false;
     let signal = null;
@@ -1213,11 +1277,11 @@ export class ExtendedStrategies {
       signal = {
         type: 'LONG',
         entry,
-        sl: entry * 0.994,
+        sl: Math.min(parseFloat(lastCandle.low) * 0.998, entry * 0.993),
         tp: entry * 1.02,
-        riskPercent: 0.6,
+        riskPercent: 0.7,
         profitPercent: 2.0,
-        reasons: ['T-CLAM Triple Confluence: Barrido de soporte local + absorción en Delta inverso + clímax']
+        reasons: ['T-CLAM Triple Confluence: Barrido de soporte + rechazo en mecha + agotamiento Williams %R']
       };
     } else if (isSweepHigh) {
       hasSignal = true;
@@ -1225,19 +1289,19 @@ export class ExtendedStrategies {
       signal = {
         type: 'SHORT',
         entry,
-        sl: entry * 1.006,
+        sl: Math.max(parseFloat(lastCandle.high) * 1.002, entry * 1.007),
         tp: entry * 0.98,
-        riskPercent: 0.6,
+        riskPercent: 0.7,
         profitPercent: 2.0,
-        reasons: ['T-CLAM Triple Confluence: Barrido de resistencia local + absorción en Delta inverso + clímax']
+        reasons: ['T-CLAM Triple Confluence: Barrido de resistencia + rechazo en mecha + agotamiento Williams %R']
       };
     }
-    const pUp = isSweepLow ? 83 : isSweepHigh ? 17 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'T-CLAM ALCISTA' : pUp <= 45 ? 'T-CLAM BAJISTA' : 'NEUTRAL', hasSignal, signal, reasons: ['Matriz Triple Confluencia: CVD + Liquidez + Momentum'] };
+    const pUp = isSweepLow ? 82 : isSweepHigh ? 18 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'T-CLAM ALCISTA' : pUp <= 40 ? 'T-CLAM BAJISTA' : 'NEUTRAL', hasSignal, signal, reasons: [`Williams %R: ${lastWr.toFixed(1)} | Soporte/Resistencia: $${Math.round(low)}/$${Math.round(high)}`] };
   }
 
   static runStrategy57(candles5m, cvd5m = 0) {
-    if (!candles5m || candles5m.length < 20) return { success: false, error: 'Datos insuficientes E57' };
+    if (!candles5m || candles5m.length < 22) return { success: false, error: 'Datos insuficientes E57' };
     const lastCandle = candles5m[candles5m.length - 1];
     const lastPrice = parseFloat(lastCandle.close);
     const high = parseFloat(lastCandle.high);
@@ -1245,12 +1309,14 @@ export class ExtendedStrategies {
     const open = parseFloat(lastCandle.open);
     const close = parseFloat(lastCandle.close);
     const range = high - low;
+    const avgVol = candles5m.slice(-21, -1).reduce((a, c) => a + parseFloat(c.volume), 0) / 20;
+    const volRatio = avgVol > 0 ? parseFloat(lastCandle.volume) / avgVol : 1;
 
     const lowerWick = Math.min(open, close) - low;
     const upperWick = high - Math.max(open, close);
 
-    const isExhaustionBuy = range > 0 && (lowerWick / range) >= 0.62;
-    const isExhaustionSell = range > 0 && (upperWick / range) >= 0.62;
+    const isExhaustionBuy = range > 0 && (lowerWick / range) >= 0.60 && volRatio >= 1.4;
+    const isExhaustionSell = range > 0 && (upperWick / range) >= 0.60 && volRatio >= 1.4;
 
     let hasSignal = false;
     let signal = null;
@@ -1261,11 +1327,11 @@ export class ExtendedStrategies {
       signal = {
         type: 'LONG',
         entry,
-        sl: low * 0.999,
-        tp: entry * 1.012,
-        riskPercent: 0.5,
-        profitPercent: 1.2,
-        reasons: ['FOEIR Agotamiento Fractal: Mecha de rechazo >62% con absorción masiva de venta']
+        sl: Math.min(low * 0.9985, entry * 0.994),
+        tp: entry * 1.014,
+        riskPercent: 0.6,
+        profitPercent: 1.4,
+        reasons: [`FOEIR Agotamiento Fractal: Mecha de rechazo >60% con volumen ${volRatio.toFixed(1)}x`]
       };
     } else if (isExhaustionSell) {
       hasSignal = true;
@@ -1273,15 +1339,15 @@ export class ExtendedStrategies {
       signal = {
         type: 'SHORT',
         entry,
-        sl: high * 1.001,
-        tp: entry * 0.988,
-        riskPercent: 0.5,
-        profitPercent: 1.2,
-        reasons: ['FOEIR Agotamiento Fractal: Mecha de rechazo >62% con absorción masiva de compra']
+        sl: Math.max(high * 1.0015, entry * 1.006),
+        tp: entry * 0.986,
+        riskPercent: 0.6,
+        profitPercent: 1.4,
+        reasons: [`FOEIR Agotamiento Fractal: Mecha de rechazo >60% con volumen ${volRatio.toFixed(1)}x`]
       };
     }
-    const pUp = isExhaustionBuy ? 81 : isExhaustionSell ? 19 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'FOEIR ALCISTA' : pUp <= 45 ? 'FOEIR BAJISTA' : 'FLUJO NORMAL', hasSignal, signal, reasons: [`Rechazo: ${((Math.max(lowerWick, upperWick) / (range || 1)) * 100).toFixed(0)}% del rango`] };
+    const pUp = isExhaustionBuy ? 80 : isExhaustionSell ? 20 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'FOEIR ALCISTA' : pUp <= 40 ? 'FOEIR BAJISTA' : 'FLUJO NORMAL', hasSignal, signal, reasons: [`Rechazo: ${((Math.max(lowerWick, upperWick) / (range || 1)) * 100).toFixed(0)}% | Vol: ${volRatio.toFixed(1)}x`] };
   }
 
   static runStrategy58(klinesMap) {
@@ -1289,55 +1355,72 @@ export class ExtendedStrategies {
     const k1h = klinesMap?.['1h'] || [];
     const k4h = klinesMap?.['4h'] || [];
 
-    if (k15.length < 20 || k1h.length < 20 || k4h.length < 20) {
+    if (k15.length < 25 || k1h.length < 25 || k4h.length < 25) {
       return { success: false, error: 'Datos multitemporales insuficientes E58' };
     }
 
-    const p15 = parseFloat(k15[k15.length - 1].close);
-    const p1h = parseFloat(k1h[k1h.length - 1].close);
-    const p4h = parseFloat(k4h[k4h.length - 1].close);
+    const ema21 = (candles) => {
+      const k = 2 / 22;
+      let val = parseFloat(candles[0].close);
+      for (let i = 1; i < candles.length; i++) val = parseFloat(candles[i].close) * k + val * (1 - k);
+      return val;
+    };
 
-    const isAllAlignedBull = p15 > parseFloat(k15[k15.length - 10].close) && p1h > parseFloat(k1h[k1h.length - 10].close) && p4h > parseFloat(k4h[k4h.length - 10].close);
-    const isAllAlignedBear = p15 < parseFloat(k15[k15.length - 10].close) && p1h < parseFloat(k1h[k1h.length - 10].close) && p4h < parseFloat(k4h[k4h.length - 10].close);
+    const p15 = parseFloat(k15[k15.length - 1].close);
+    const e15 = ema21(k15.slice(-40));
+    const p1h = parseFloat(k1h[k1h.length - 1].close);
+    const e1h = ema21(k1h.slice(-40));
+    const p4h = parseFloat(k4h[k4h.length - 1].close);
+    const e4h = ema21(k4h.slice(-40));
+
+    const bull3TF = p15 > e15 && p1h > e1h && p4h > e4h;
+    const bear3TF = p15 < e15 && p1h < e1h && p4h < e4h;
+    const nearPullback15 = Math.abs(p15 - e15) / p15 < 0.004;
 
     let hasSignal = false;
     let signal = null;
 
-    if (isAllAlignedBull) {
+    if (bull3TF && nearPullback15) {
       hasSignal = true;
       const entry = p15;
       signal = {
         type: 'LONG',
         entry,
         sl: entry * 0.99,
-        tp: entry * 1.025,
+        tp: entry * 1.024,
         riskPercent: 1.0,
-        profitPercent: 2.5,
-        reasons: ['MTM-RAT Ribbon 3TF: Alineación perfecta de tendencia y momentum en 15m, 1H y 4H']
+        profitPercent: 2.4,
+        reasons: ['MTM-RAT Ribbon 3TF: Alineación alcista 15m/1H/4H + pullback óptimo a EMA 21']
       };
-    } else if (isAllAlignedBear) {
+    } else if (bear3TF && nearPullback15) {
       hasSignal = true;
       const entry = p15;
       signal = {
         type: 'SHORT',
         entry,
         sl: entry * 1.01,
-        tp: entry * 0.975,
+        tp: entry * 0.976,
         riskPercent: 1.0,
-        profitPercent: 2.5,
-        reasons: ['MTM-RAT Ribbon 3TF: Alineación perfecta de tendencia y momentum bajista en 15m, 1H y 4H']
+        profitPercent: 2.4,
+        reasons: ['MTM-RAT Ribbon 3TF: Alineación bajista 15m/1H/4H + pullback óptimo a EMA 21']
       };
     }
-    const pUp = isAllAlignedBull ? 82 : isAllAlignedBear ? 18 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 55 ? 'RIBBON 3TF ALCISTA' : pUp <= 45 ? 'RIBBON 3TF BAJISTA' : 'DESALINEADO', hasSignal, signal, reasons: ['Convergencia 3TF: 15m + 1H + 4H'] };
+    const pUp = bull3TF ? 76 : bear3TF ? 24 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: bull3TF ? 'RIBBON 3TF ALCISTA' : bear3TF ? 'RIBBON 3TF BAJISTA' : 'DESALINEADO', hasSignal, signal, reasons: [`Convergencia EMA21: 15m(${p15 > e15 ? '🟢' : '🔴'}) 1H(${p1h > e1h ? '🟢' : '🔴'}) 4H(${p4h > e4h ? '🟢' : '🔴'})`] };
   }
 
-  static runStrategy59(candles1h, fundingRate = 0.0001) {
+  static runStrategy59(candles1h, fundingRate = null, marketContext = null) {
     if (!candles1h || candles1h.length < 30) return { success: false, error: 'Datos insuficientes E59' };
     const lastPrice = parseFloat(candles1h[candles1h.length - 1].close);
     const prices = candles1h.map(c => parseFloat(c.close));
-    const isNewLow = prices[prices.length - 1] <= Math.min(...prices.slice(prices.length - 20));
-    const isNegativeFunding = fundingRate < -0.00012;
+    const isNewLow = prices[prices.length - 1] <= Math.min(...prices.slice(prices.length - 20)) * 1.003;
+    const isNewHigh = prices[prices.length - 1] >= Math.max(...prices.slice(prices.length - 20)) * 0.997;
+
+    const realFunding = fundingRate !== null ? fundingRate : (marketContext?.fundingRate ?? null);
+    const oiDelta = marketContext?.oiChangePct ?? 0;
+
+    const isNegativeFunding = realFunding !== null && realFunding < -0.0001 && oiDelta >= 0;
+    const isPositiveFunding = realFunding !== null && realFunding > 0.00035 && oiDelta >= 0;
 
     let hasSignal = false;
     let signal = null;
@@ -1352,42 +1435,63 @@ export class ExtendedStrategies {
         tp: entry * 1.032,
         riskPercent: 1.2,
         profitPercent: 3.2,
-        reasons: ['DFOIDC Cascade Climax: Nuevo mínimo de precio con funding negativo extremo (Short Squeeze Inminente)']
+        reasons: [`DFOIDC Cascade Climax: Nuevo mínimo + Funding ${(realFunding * 100).toFixed(4)}% + OI (${oiDelta}%)`]
+      };
+    } else if (isNewHigh && isPositiveFunding) {
+      hasSignal = true;
+      const entry = lastPrice;
+      signal = {
+        type: 'SHORT',
+        entry,
+        sl: entry * 1.012,
+        tp: entry * 0.968,
+        riskPercent: 1.2,
+        profitPercent: 3.2,
+        reasons: [`DFOIDC Cascade Climax: Nuevo máximo + Funding sobrecalentado ${(realFunding * 100).toFixed(4)}%`]
       };
     }
-    const pUp = isNewLow && isNegativeFunding ? 84 : 50;
-    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 60 ? 'SHORT SQUEEZE INMINENTE' : 'EQUILIBRIO DERIVADOS', hasSignal, signal, reasons: [`Funding: ${(fundingRate * 100).toFixed(4)}% | Estado Mínimo: ${isNewLow ? 'SI' : 'NO'}`] };
+    const pUp = (isNewLow && isNegativeFunding) ? 84 : (isNewHigh && isPositiveFunding) ? 16 : 50;
+    return { success: true, pUp, pDown: 100 - pUp, bias: pUp >= 65 ? 'SHORT SQUEEZE INMINENTE' : pUp <= 35 ? 'LONG SQUEEZE INMINENTE' : 'EQUILIBRIO DERIVADOS', hasSignal, signal, reasons: [`Funding: ${realFunding !== null ? (realFunding * 100).toFixed(4) + '%' : 'N/D'} | OI Δ: ${oiDelta}%`] };
   }
 
-  static runStrategy60(resultsMap, signalsHistory = []) {
+  static runStrategy60(resultsMap, signalsHistory = [], backtestStatsMap = null, currentPrice = null, marketContext = null) {
     if (!resultsMap) return { success: false, error: 'Sin datos para la Estrategia 60' };
 
     let weightedLongScore = 0;
-    let weightedShortScore = 0;
+    let totalWeight = 0;
     let totalEvaluated = 0;
 
-    const stratEntries = Object.entries(resultsMap).filter(([name]) => name !== 'Estrategia 60');
+    const stratEntries = Object.entries(resultsMap).filter(([name]) => name !== 'Estrategia 60' && name !== 'Estrategia 25');
 
     stratEntries.forEach(([name, res]) => {
-      if (res && res.success) {
+      if (res && res.success && res.pUp !== undefined) {
         totalEvaluated++;
-        // Ponderar por probabilidad
-        if (res.pUp !== undefined) {
-          weightedLongScore += res.pUp;
-          weightedShortScore += res.pDown;
+        let weight = 1.0;
+        const bt = backtestStatsMap?.[name];
+        if (bt && bt.totalTrades >= 3) {
+          const pf = Math.min(2.2, Math.max(0.35, bt.profitFactor || 1.0));
+          const wr = bt.winRate >= 58 ? 1.35 : bt.winRate >= 48 ? 1.0 : 0.45;
+          weight = pf * wr;
         }
+        weightedLongScore += res.pUp * weight;
+        totalWeight += weight;
       }
     });
 
-    const avgPUp = totalEvaluated > 0 ? Math.round(weightedLongScore / totalEvaluated) : 50;
+    let avgPUp = totalWeight > 0 ? Math.round(weightedLongScore / totalWeight) : 50;
+    if (marketContext?.coinbasePremiumPct > 0.03) avgPUp = Math.min(92, avgPUp + 2);
+    else if (marketContext?.coinbasePremiumPct < -0.03) avgPUp = Math.max(8, avgPUp - 2);
     const avgPDown = 100 - avgPUp;
 
-    const lastPrice = resultsMap['Estrategia 1']?.signal?.entry || 65000;
+    const lastPrice = currentPrice
+      || resultsMap['Estrategia 1']?.signal?.entry
+      || resultsMap['Estrategia 31']?.signal?.entry
+      || null;
 
     let hasSignal = false;
     let signal = null;
 
-    if (avgPUp >= 66) {
+    if (avgPUp >= 64 && lastPrice) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
@@ -1397,9 +1501,9 @@ export class ExtendedStrategies {
         tp: entry * 1.028,
         riskPercent: 1.2,
         profitPercent: 2.8,
-        reasons: [`The Sovereign Quant Ensemble: Confluencia institucional de alta convicción (${avgPUp}% Alcista ponderado)`]
+        reasons: [`The Sovereign Quant Ensemble: Confluencia ponderada por Backtest (${avgPUp}% Alcista)`]
       };
-    } else if (avgPDown >= 66) {
+    } else if (avgPDown >= 64 && lastPrice) {
       hasSignal = true;
       const entry = lastPrice;
       signal = {
@@ -1409,7 +1513,7 @@ export class ExtendedStrategies {
         tp: entry * 0.972,
         riskPercent: 1.2,
         profitPercent: 2.8,
-        reasons: [`The Sovereign Quant Ensemble: Confluencia institucional de alta convicción (${avgPDown}% Bajista ponderado)`]
+        reasons: [`The Sovereign Quant Ensemble: Confluencia ponderada por Backtest (${avgPDown}% Bajista)`]
       };
     }
 
@@ -1421,8 +1525,8 @@ export class ExtendedStrategies {
       hasSignal,
       signal,
       reasons: [
-        `Puntuación Ponderada: ${avgPUp}% Alcista / ${avgPDown}% Bajista`,
-        `Modelos Computados: ${totalEvaluated} Algoritmos Cuantitativos`
+        `Puntuación Ponderada por Edge Real: ${avgPUp}% Alcista / ${avgPDown}% Bajista`,
+        `Modelos Evaluados: ${totalEvaluated} Algoritmos Cuantitativos`
       ]
     };
   }
@@ -1448,25 +1552,24 @@ export class ExtendedStrategies {
     const ma20 = prices.slice(prices.length - 20).reduce((a, b) => a + b, 0) / 20;
     const diffPercent = Math.abs((lastPrice - ma20) / ma20) * 100;
 
-    // Calcular volatilidad promedio de velas
     const recentCandles = k1h.slice(k1h.length - 14);
     const avgRange = recentCandles.reduce((acc, c) => acc + (parseFloat(c.high) - parseFloat(c.low)), 0) / 14;
     const relVol = avgRange / lastPrice;
 
-    if (diffPercent > 2.2) {
+    if (diffPercent > 2.0) {
       return {
         regime: 'TRENDING',
-        label: '🚀 Tendencia Institucional Fuerte',
-        desc: 'El precio se aleja agresivamente del valor medio. Favorece estrategias de seguimiento tendencial y momentum.',
-        confidence: Math.min(95, Math.round(50 + diffPercent * 15)),
+        label: lastPrice > ma20 ? '🚀 Tendencia Alcista Fuerte' : '📉 Tendencia Bajista Fuerte',
+        desc: 'El precio muestra impulso direccional claro respecto al valor medio. Prioriza estrategias de seguimiento de tendencia.',
+        confidence: Math.min(95, Math.round(55 + diffPercent * 14)),
         recommendedStyle: 'TREND',
         recommended: ['E1', 'E3', 'E6', 'E7', 'E58']
       };
     } else if (relVol < 0.008) {
       return {
         regime: 'COMPRESSION',
-        label: '🌪️ Compresión Previa a Explosión',
-        desc: 'Volatilidad en mínimos locales históricos. Se anticipa ruptura violenta inminente (Squeeze).',
+        label: '🌪️ Compresión Previa a Movimiento Fuerte',
+        desc: 'La volatilidad cayó a mínimos recientes. Suele preceder rupturas bruscas; conviene esperar confirmación antes de entrar.',
         confidence: 85,
         recommendedStyle: 'VOLATILITY',
         recommended: ['E10', 'E41', 'E42', 'E54']
@@ -1474,8 +1577,8 @@ export class ExtendedStrategies {
     } else {
       return {
         regime: 'RANGING',
-        label: '🌊 Rango Lateral / Reversión a la Media',
-        desc: 'El precio oscila entre soportes y resistencias sin tendencia clara. Favorece reversiones a VWAP y osciladores.',
+        label: '🌊 Rango Lateral / Sin Tendencia Clara',
+        desc: 'BTC oscila entre soporte y resistencia. Funcionan mejor compras en soportes y ventas en resistencias.',
         confidence: 80,
         recommendedStyle: 'MEAN_REVERSION',
         recommended: ['E11', 'E12', 'E13', 'E53', 'E56']
@@ -1483,18 +1586,22 @@ export class ExtendedStrategies {
     }
   }
 
-  static calculateMagneticZones(klinesMap, lastPrice = 65000) {
+  static calculateMagneticZones(klinesMap, lastPrice = null, marketContext = null) {
     const k1h = klinesMap?.['1h'] || [];
-    const k15m = klinesMap?.['15m'] || [];
-
-    const p = lastPrice || (k1h.length > 0 ? parseFloat(k1h[k1h.length - 1].close) : 65000);
+    const p = lastPrice || (k1h.length > 0 ? parseFloat(k1h[k1h.length - 1].close) : null);
+    if (!p) return null;
 
     const window1h = k1h.slice(Math.max(0, k1h.length - 24));
     const high1h = window1h.length > 0 ? Math.max(...window1h.map(c => parseFloat(c.high))) : p * 1.015;
     const low1h = window1h.length > 0 ? Math.min(...window1h.map(c => parseFloat(c.low))) : p * 0.985;
 
-    const shortLiqMagnet = Math.round(high1h * 1.002);
-    const longLiqMagnet = Math.round(low1h * 0.998);
+    const shortLiqMagnet = marketContext?.nearestSellWall?.price && marketContext.nearestSellWall.price > p
+      ? marketContext.nearestSellWall.price
+      : Math.round(high1h * 1.002);
+    const longLiqMagnet = marketContext?.nearestBuyWall?.price && marketContext.nearestBuyWall.price < p
+      ? marketContext.nearestBuyWall.price
+      : Math.round(low1h * 0.998);
+
     const mondayMidpoint = Math.round((high1h + low1h) / 2);
     const nearestCmeGap = Math.round(p > mondayMidpoint ? low1h * 0.992 : high1h * 1.008);
 

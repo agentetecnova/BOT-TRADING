@@ -34,15 +34,23 @@ class TechnicalAnalysisService {
         if (response.ok) {
           const rawData = await response.json();
           if (Array.isArray(rawData) && rawData.length > 0) {
-            return rawData.map(item => ({
-              openTime: item[0],
-              open: parseFloat(item[1]),
-              high: parseFloat(item[2]),
-              low: parseFloat(item[3]),
-              close: parseFloat(item[4]),
-              volume: parseFloat(item[5]),
-              closeTime: item[6]
-            }));
+            return rawData.map(item => {
+              const close = parseFloat(item[4]);
+              const volume = parseFloat(item[5]);
+              const takerBuyVol = item[9] !== undefined ? parseFloat(item[9]) : volume * 0.5;
+              const deltaVol = (2 * takerBuyVol) - volume;
+              return {
+                openTime: item[0],
+                open: parseFloat(item[1]),
+                high: parseFloat(item[2]),
+                low: parseFloat(item[3]),
+                close,
+                volume,
+                takerBuyVolume: takerBuyVol,
+                volumeDeltaUsd: deltaVol * close,
+                closeTime: item[6]
+              };
+            });
           }
         }
       } catch (err) {
@@ -368,19 +376,19 @@ class TechnicalAnalysisService {
     else if (pDown >= 70) bias = 'BAJISTA FUERTE';
     else if (pDown >= 55) bias = 'BAJISTA MODERADO';
 
-    // Generate signal
+    // Generate high-conviction signal only when confluence >= 65% and trend/momentum align
     let hasSignal = false;
     let signal = null;
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const atrArr = this.calculateATR(candles, 14);
+    const curAtr = atrArr[lastIdx] || lastPrice * 0.006;
 
-    if (pUp > 50) {
+    if (pUp >= 68 && lastEma9 !== null && lastEma21 !== null && lastEma9 > lastEma21) {
       hasSignal = true;
-      const recentLows = candles.slice(candles.length - 5).map(c => c.low);
-      let sl = Math.min(...recentLows);
-      if (lastPrice - sl < lastPrice * 0.003) {
-        sl = lastPrice * 0.997; // 0.3% min distance
-      }
-      const risk = lastPrice - sl;
-      const tp = lastPrice + (2 * risk); // R:R 1:2
+      const sl = Math.min(Math.min(...lows.slice(-6)) * 0.9985, lastPrice - (curAtr * 1.4));
+      const risk = Math.max(lastPrice * 0.004, lastPrice - sl);
+      const tp = lastPrice + (2.0 * risk);
       const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
       const profitPercent = parseFloat((((tp - lastPrice) / lastPrice) * 100).toFixed(2));
 
@@ -393,15 +401,11 @@ class TechnicalAnalysisService {
         profitPercent,
         reasons: [...reasons]
       };
-    } else if (pDown > 50) {
+    } else if (pDown >= 68 && lastEma9 !== null && lastEma21 !== null && lastEma9 < lastEma21) {
       hasSignal = true;
-      const recentHighs = candles.slice(candles.length - 5).map(c => c.high);
-      let sl = Math.max(...recentHighs);
-      if (sl - lastPrice < lastPrice * 0.003) {
-        sl = lastPrice * 1.003; // 0.3% min distance
-      }
-      const risk = sl - lastPrice;
-      const tp = lastPrice - (2 * risk); // R:R 1:2
+      const sl = Math.max(Math.max(...highs.slice(-6)) * 1.0015, lastPrice + (curAtr * 1.4));
+      const risk = Math.max(lastPrice * 0.004, sl - lastPrice);
+      const tp = lastPrice - (2.0 * risk);
       const riskPercent = parseFloat(((risk / lastPrice) * 100).toFixed(2));
       const profitPercent = parseFloat((((lastPrice - tp) / lastPrice) * 100).toFixed(2));
 
@@ -543,22 +547,18 @@ class TechnicalAnalysisService {
     else if (pDown >= 65) bias = 'VENTA INSTITUCIONAL';
     else if (pDown >= 55) bias = 'SESGO VENDEDOR';
 
-    // Generate signal
+    // Generate signal only on strong multi-timeframe conviction (>= 62%)
     let hasSignal = false;
     let signal = null;
     const lastPrice15m = klinesMap['15m'][klinesMap['15m'].length - 1].close;
+    const atr15m = this.calculateATR(klinesMap['15m'], 14);
+    const curAtr15m = atr15m[atr15m.length - 1] || lastPrice15m * 0.006;
 
-    if (pUp > 50 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
+    if (pUp >= 62 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
       hasSignal = true;
-      const minEma = Math.min(emaValues15m.ema50, emaValues15m.ema350, emaValues15m.ema700);
-      let sl = minEma * 0.998; // 0.2% below min EMA
-      if (lastPrice15m - sl < lastPrice15m * 0.003) {
-        sl = lastPrice15m * 0.997; // min 0.3%
-      } else if (lastPrice15m - sl > lastPrice15m * 0.02) {
-        sl = lastPrice15m * 0.98; // max 2.0%
-      }
+      const sl = lastPrice15m - Math.max(lastPrice15m * 0.006, curAtr15m * 1.6);
       const risk = lastPrice15m - sl;
-      const tp = lastPrice15m + (3 * risk); // R:R 1:3
+      const tp = lastPrice15m + (2.2 * risk);
       const riskPercent = parseFloat(((risk / lastPrice15m) * 100).toFixed(2));
       const profitPercent = parseFloat((((tp - lastPrice15m) / lastPrice15m) * 100).toFixed(2));
 
@@ -571,17 +571,11 @@ class TechnicalAnalysisService {
         profitPercent,
         reasons: [...details].filter(d => d.includes('[15m]') || d.includes('[1h]') || d.includes('[4h]'))
       };
-    } else if (pDown > 50 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
+    } else if (pDown >= 62 && emaValues15m.ema50 !== null && emaValues15m.ema350 !== null && emaValues15m.ema700 !== null) {
       hasSignal = true;
-      const maxEma = Math.max(emaValues15m.ema50, emaValues15m.ema350, emaValues15m.ema700);
-      let sl = maxEma * 1.002; // 0.2% above max EMA
-      if (sl - lastPrice15m < lastPrice15m * 0.003) {
-        sl = lastPrice15m * 1.003; // min 0.3%
-      } else if (sl - lastPrice15m > lastPrice15m * 0.02) {
-        sl = lastPrice15m * 1.02; // max 2.0%
-      }
+      const sl = lastPrice15m + Math.max(lastPrice15m * 0.006, curAtr15m * 1.6);
       const risk = sl - lastPrice15m;
-      const tp = lastPrice15m - (3 * risk); // R:R 1:3
+      const tp = lastPrice15m - (2.2 * risk);
       const riskPercent = parseFloat(((risk / lastPrice15m) * 100).toFixed(2));
       const profitPercent = parseFloat((((lastPrice15m - tp) / lastPrice15m) * 100).toFixed(2));
 
@@ -866,11 +860,14 @@ class TechnicalAnalysisService {
       reasons.push(`Volatilidad normal (Ancho de bandas: ${(bbw * 100).toFixed(2)}%)`);
     }
 
-    if (pUp > 50) {
+    const dailyBreakoutUp = lastPrice > lastUpper;
+    const dailyBreakoutDown = lastPrice < lastLower;
+
+    if (pUp >= 60 && (isSqueeze || dailyBreakoutUp)) {
       hasSignal = true;
       let sl = bandAvg;
-      // Clamp stop loss between 1% and 3.5% for daily swing limits
-      if (lastPrice - sl < lastPrice * 0.01 || lastPrice - sl > lastPrice * 0.035) {
+      // Clamp stop loss between 1.2% and 3.5% for daily swing limits
+      if (lastPrice - sl < lastPrice * 0.012 || lastPrice - sl > lastPrice * 0.035) {
         sl = lastPrice * 0.98; // 2% standard swing stop loss
       }
       const risk = lastPrice - sl;
@@ -885,13 +882,13 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, 'Ruptura / Continuidad de Tendencia Macro Alcista']
+        reasons: [...reasons, 'Ruptura / Compresión Macro Alcista Confirmada']
       };
-    } else if (pDown > 50) {
+    } else if (pDown >= 60 && (isSqueeze || dailyBreakoutDown)) {
       hasSignal = true;
       let sl = bandAvg;
-      // Clamp stop loss between 1% and 3.5% for daily swing limits
-      if (sl - lastPrice < lastPrice * 0.01 || sl - lastPrice > lastPrice * 0.035) {
+      // Clamp stop loss between 1.2% and 3.5% for daily swing limits
+      if (sl - lastPrice < lastPrice * 0.012 || sl - lastPrice > lastPrice * 0.035) {
         sl = lastPrice * 1.02; // 2% standard swing stop loss
       }
       const risk = sl - lastPrice;
@@ -906,7 +903,7 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, 'Ruptura / Continuidad de Tendencia Macro Bajista']
+        reasons: [...reasons, 'Ruptura / Compresión Macro Bajista Confirmada']
       };
     }
 
@@ -1385,14 +1382,14 @@ class TechnicalAnalysisService {
     if (lastCmf !== null) reasons.push(`Flujo Monetario Chaikin (CMF): ${lastCmf.toFixed(2)} ${lastCmf >= 0 ? '(Acumulación Positiva)' : '(Distribución)'}`);
     if (lastRsi !== null) reasons.push(`RSI 14: ${lastRsi.toFixed(1)}`);
 
-    const isPlusDominant = lastPlusDI !== null && lastMinusDI !== null && lastPlusDI >= lastMinusDI;
-    const isAccumulating = lastCmf !== null && lastCmf >= -0.02;
-    
-    // Rules:
-    // LONG: DI+ >= DI-, CMF >= 0, RSI < 70
-    const longTrigger = isPlusDominant && isAccumulating && (lastRsi === null || lastRsi < 70);
-    // SHORT: DI- > DI+, CMF < 0, RSI > 30
-    const shortTrigger = !isPlusDominant && !isAccumulating && (lastRsi === null || lastRsi > 30);
+    const isPlusDominant = lastPlusDI !== null && lastMinusDI !== null && lastPlusDI > lastMinusDI;
+    const isStrongTrend = lastAdx !== null && lastAdx > 22;
+    const isAccumulating = lastCmf !== null && lastCmf > 0.05;
+    const isDistributing = lastCmf !== null && lastCmf < -0.05;
+
+    // Rules: Require ADX > 22 trend strength + real money flow confirmation
+    const longTrigger = isStrongTrend && isPlusDominant && isAccumulating && (lastRsi === null || (lastRsi > 45 && lastRsi < 68));
+    const shortTrigger = isStrongTrend && !isPlusDominant && isDistributing && (lastRsi === null || (lastRsi < 55 && lastRsi > 32));
 
     if (longTrigger) {
       hasSignal = true;
@@ -1848,13 +1845,16 @@ class TechnicalAnalysisService {
     let hasSignal = false;
     let signal = null;
 
-    if (bullDiv || (lastRsi !== null && lastRsi < 40 && cvd5m >= 0)) {
+    const lastCandleDelta = candles5m[candles5m.length - 1]?.volumeDeltaUsd || 0;
+    const effectiveCvd = cvd5m !== 0 ? cvd5m : lastCandleDelta;
+
+    if (bullDiv || (lastRsi !== null && lastRsi < 28 && effectiveCvd > 0)) {
       hasSignal = true;
       const entry = lastPrice;
-      const sl = entry * 0.995;
-      const tp = entry * 1.010;
-      const riskPercent = 0.5;
-      const profitPercent = 1.0;
+      const sl = entry * 0.993;
+      const tp = entry * 1.014;
+      const riskPercent = 0.7;
+      const profitPercent = 1.4;
 
       signal = {
         type: 'LONG',
@@ -1863,15 +1863,15 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, 'Scalp Alcista: Divergencia RSI 5m / Absorción CVD']
+        reasons: [...reasons, 'Scalp Alcista: Divergencia RSI 5m / Absorción Real de Delta']
       };
-    } else if (bearDiv || (lastRsi !== null && lastRsi > 60 && cvd5m <= 0)) {
+    } else if (bearDiv || (lastRsi !== null && lastRsi > 72 && effectiveCvd < 0)) {
       hasSignal = true;
       const entry = lastPrice;
-      const sl = entry * 1.005;
-      const tp = entry * 0.990;
-      const riskPercent = 0.5;
-      const profitPercent = 1.0;
+      const sl = entry * 1.007;
+      const tp = entry * 0.986;
+      const riskPercent = 0.7;
+      const profitPercent = 1.4;
 
       signal = {
         type: 'SHORT',
@@ -1880,11 +1880,11 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, 'Scalp Bajista: Divergencia RSI 5m / Presión CVD']
+        reasons: [...reasons, 'Scalp Bajista: Divergencia RSI 5m / Presión Vendedora Real']
       };
     }
 
-    const pUp = cvd5m >= 0 ? 60 : 40;
+    const pUp = bullDiv ? 72 : bearDiv ? 28 : (effectiveCvd > 0 ? 58 : effectiveCvd < 0 ? 42 : 50);
     const pDown = 100 - pUp;
 
     return {
@@ -1922,14 +1922,20 @@ class TechnicalAnalysisService {
     const isEmaBullish = lastEma9 !== null && lastEma21 !== null && lastEma9 > lastEma21;
     const isEmaBearish = lastEma9 !== null && lastEma21 !== null && lastEma9 < lastEma21;
 
+    const prevEma9 = ema9[prices.length - 2];
+    const prevEma21 = ema21[prices.length - 2];
+    const prevTrend = supertrend.trend[prices.length - 2] || lastTrend;
+    const isFreshCrossBull = isEmaBullish && (prevEma9 <= prevEma21 || prevTrend === -1 || parseFloat(candles5m[candles5m.length - 1].low) <= lastEma21 * 1.001);
+    const isFreshCrossBear = isEmaBearish && (prevEma9 >= prevEma21 || prevTrend === 1 || parseFloat(candles5m[candles5m.length - 1].high) >= lastEma21 * 0.999);
+
     let hasSignal = false;
     let signal = null;
 
-    if (isEmaBullish && lastTrend === 1) {
+    if (isFreshCrossBull && lastTrend === 1) {
       hasSignal = true;
       const entry = lastPrice;
-      const sl = Math.min(lastEma21 || entry * 0.995, entry * 0.995);
-      const riskPercent = parseFloat((((entry - sl) / entry) * 100).toFixed(2));
+      const sl = Math.min(lastEma21 * 0.997, entry * 0.993);
+      const riskPercent = Math.max(0.5, parseFloat((((entry - sl) / entry) * 100).toFixed(2)));
       const tp = entry * (1 + (riskPercent * 2 / 100));
       const profitPercent = parseFloat((((tp - entry) / entry) * 100).toFixed(2));
 
@@ -1940,13 +1946,13 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, 'Impulso Scalp 5m: Cruce EMA 9/21 + Supertrend Alcista']
+        reasons: [...reasons, 'Impulso Scalp 5m: Giro o Pullback en EMA 9/21 + Supertrend Alcista']
       };
-    } else if (isEmaBearish && lastTrend === -1) {
+    } else if (isFreshCrossBear && lastTrend === -1) {
       hasSignal = true;
       const entry = lastPrice;
-      const sl = Math.max(lastEma21 || entry * 1.005, entry * 1.005);
-      const riskPercent = parseFloat((((sl - entry) / entry) * 100).toFixed(2));
+      const sl = Math.max(lastEma21 * 1.003, entry * 1.007);
+      const riskPercent = Math.max(0.5, parseFloat((((sl - entry) / entry) * 100).toFixed(2)));
       const tp = entry * (1 - (riskPercent * 2 / 100));
       const profitPercent = parseFloat((((entry - tp) / entry) * 100).toFixed(2));
 
@@ -1957,7 +1963,7 @@ class TechnicalAnalysisService {
         tp,
         riskPercent,
         profitPercent,
-        reasons: [...reasons, 'Impulso Scalp 5m: Cruce EMA 9/21 + Supertrend Bajista']
+        reasons: [...reasons, 'Impulso Scalp 5m: Giro o Pullback en EMA 9/21 + Supertrend Bajista']
       };
     }
 
@@ -1996,13 +2002,13 @@ class TechnicalAnalysisService {
       `StochRSI (15m): ${lastK !== null ? lastK.toFixed(1) : '--'}`
     ];
 
-    const isSweepingLow = lastPrice <= localLow * 1.001 && lastK !== null && lastK < 35;
-    const isSweepingHigh = lastPrice >= localHigh * 0.999 && lastK !== null && lastK > 65;
+    const isSweepingLow = parseFloat(candles15m[candles15m.length - 1].low) <= localLow && lastPrice > localLow && lastK !== null && lastK < 25;
+    const isSweepingHigh = parseFloat(candles15m[candles15m.length - 1].high) >= localHigh && lastPrice < localHigh && lastK !== null && lastK > 75;
 
     let hasSignal = false;
     let signal = null;
 
-    if (isSweepingLow || (lastPrice < (localLow + localHigh) / 2 && lastK !== null && lastK < 35)) {
+    if (isSweepingLow) {
       hasSignal = true;
       const entry = lastPrice;
       const sl = entry * 0.994;
@@ -2019,7 +2025,7 @@ class TechnicalAnalysisService {
         profitPercent,
         reasons: [...reasons, 'Scalp Barrida 15m: Captura de Liquidez en Mínimo Local + StochRSI']
       };
-    } else if (isSweepingHigh || (lastPrice > (localLow + localHigh) / 2 && lastK !== null && lastK > 65)) {
+    } else if (isSweepingHigh) {
       hasSignal = true;
       const entry = lastPrice;
       const sl = entry * 1.006;
@@ -2181,35 +2187,40 @@ class TechnicalAnalysisService {
       `EMA (20): $${Math.round(lastEma20).toLocaleString()}`
     ];
 
+    const prevPrice = prices[prices.length - 2];
+    const prevEma20 = ema20[ema20.length - 2];
+    const isFreshLong16 = lastPrice > lastEma20 && lastRsi > 56 && lastRsi < 72 && (prevPrice <= prevEma20 || lastPrice <= lastEma20 * 1.005);
+    const isFreshShort16 = lastPrice < lastEma20 && lastRsi < 44 && lastRsi > 28 && (prevPrice >= prevEma20 || lastPrice >= lastEma20 * 0.995);
+
     let hasSignal = false;
     let signal = null;
-    if (lastPrice > lastEma20 && lastRsi > 55) {
+    if (isFreshLong16) {
       hasSignal = true;
       const entry = lastPrice;
-      const sl = entry * 0.992;
-      const tp = entry * 1.016;
+      const sl = entry * 0.99;
+      const tp = entry * 1.02;
       signal = {
         type: 'LONG',
         entry,
         sl,
         tp,
-        riskPercent: 0.8,
-        profitPercent: 1.6,
-        reasons: [...reasons, 'Impulso Parabólico: Sobre EMA20 + Fuerza de RSI > 55']
+        riskPercent: 1.0,
+        profitPercent: 2.0,
+        reasons: [...reasons, 'Impulso Parabólico Confirmado: Ruptura/Retesteo EMA20 + RSI > 56']
       };
-    } else if (lastPrice < lastEma20 && lastRsi < 45) {
+    } else if (isFreshShort16) {
       hasSignal = true;
       const entry = lastPrice;
-      const sl = entry * 1.008;
-      const tp = entry * 0.984;
+      const sl = entry * 1.01;
+      const tp = entry * 0.98;
       signal = {
         type: 'SHORT',
         entry,
         sl,
         tp,
-        riskPercent: 0.8,
-        profitPercent: 1.6,
-        reasons: [...reasons, 'Presión Bajista Parabólica: Bajo EMA20 + Debilidad de RSI < 45']
+        riskPercent: 1.0,
+        profitPercent: 2.0,
+        reasons: [...reasons, 'Presión Bajista Confirmada: Ruptura/Retesteo bajo EMA20 + RSI < 44']
       };
     }
     const pUp = lastPrice > lastEma20 ? 58 : 42;
@@ -2441,35 +2452,39 @@ class TechnicalAnalysisService {
       `Media Hull Zero-Lag: $${Math.round(lastHma).toLocaleString()}`
     ];
 
+    const prev2Hma = hma20[hma20.length - 3];
+    const isFreshTurnBull = lastHma > prevHma && prevHma <= prev2Hma && lastPrice > lastHma;
+    const isFreshTurnBear = lastHma < prevHma && prevHma >= prev2Hma && lastPrice < lastHma;
+
     let hasSignal = false;
     let signal = null;
-    if (lastHma > prevHma && lastPrice > lastHma) {
+    if (isFreshTurnBull) {
       hasSignal = true;
       const entry = lastPrice;
-      const sl = entry * 0.995;
-      const tp = entry * 1.012;
+      const sl = entry * 0.994;
+      const tp = entry * 1.014;
       signal = {
         type: 'LONG',
         entry,
         sl,
         tp,
-        riskPercent: 0.5,
-        profitPercent: 1.2,
-        reasons: [...reasons, 'Giro Alcista Sin Rezagos (Hull Moving Average HMA)']
+        riskPercent: 0.6,
+        profitPercent: 1.4,
+        reasons: [...reasons, 'Giro Alcista Fresco Sin Rezagos (HMA Inflection)']
       };
-    } else if (lastHma < prevHma && lastPrice < lastHma) {
+    } else if (isFreshTurnBear) {
       hasSignal = true;
       const entry = lastPrice;
-      const sl = entry * 1.005;
-      const tp = entry * 0.988;
+      const sl = entry * 1.006;
+      const tp = entry * 0.986;
       signal = {
         type: 'SHORT',
         entry,
         sl,
         tp,
-        riskPercent: 0.5,
-        profitPercent: 1.2,
-        reasons: [...reasons, 'Giro Bajista Sin Rezagos (Hull Moving Average HMA)']
+        riskPercent: 0.6,
+        profitPercent: 1.4,
+        reasons: [...reasons, 'Giro Bajista Fresco Sin Rezagos (HMA Inflection)']
       };
     }
     const pUp = lastHma > prevHma ? 58 : 42;
@@ -2526,8 +2541,16 @@ class TechnicalAnalysisService {
     const ema20_1h = this.calculateEMA(p1h, 20);
     const ema50_1h = this.calculateEMA(p1h, 50);
 
-    const isBull15 = ema20_15[ema20_15.length - 1] > ema50_15[ema50_15.length - 1];
+    const lastE20_15 = ema20_15[ema20_15.length - 1];
+    const prevE20_15 = ema20_15[ema20_15.length - 2];
+    const lastE50_15 = ema50_15[ema50_15.length - 1];
+    const prevE50_15 = ema50_15[ema50_15.length - 2];
+    const isBull15 = lastE20_15 > lastE50_15;
     const isBull1h = ema20_1h[ema20_1h.length - 1] > ema50_1h[ema50_1h.length - 1];
+    const freshCross15Bull = isBull15 && prevE20_15 <= prevE50_15;
+    const freshCross15Bear = !isBull15 && prevE20_15 >= prevE50_15;
+    const pullbackTouchBull = isBull15 && lastPrice >= lastE50_15 && lastPrice <= lastE20_15 * 1.002;
+    const pullbackTouchBear = !isBull15 && lastPrice <= lastE50_15 && lastPrice >= lastE20_15 * 0.998;
 
     const reasons = [
       `Precio Spot BTC: $${lastPrice.toLocaleString()}`,
@@ -2537,7 +2560,7 @@ class TechnicalAnalysisService {
 
     let hasSignal = false;
     let signal = null;
-    if (isBull15 && isBull1h) {
+    if (isBull15 && isBull1h && (freshCross15Bull || pullbackTouchBull)) {
       hasSignal = true;
       const entry = lastPrice;
       const sl = entry * 0.991;
@@ -2549,9 +2572,9 @@ class TechnicalAnalysisService {
         tp,
         riskPercent: 0.9,
         profitPercent: 2.0,
-        reasons: [...reasons, 'Alineación de Confluencia Ribbon Alcista Multitemporal (15m + 1H)']
+        reasons: [...reasons, 'Confluencia Ribbon 15m + 1H (Cruce o Pullback a Zona Valor)']
       };
-    } else if (!isBull15 && !isBull1h) {
+    } else if (!isBull15 && !isBull1h && (freshCross15Bear || pullbackTouchBear)) {
       hasSignal = true;
       const entry = lastPrice;
       const sl = entry * 1.009;
@@ -2563,7 +2586,7 @@ class TechnicalAnalysisService {
         tp,
         riskPercent: 0.9,
         profitPercent: 2.0,
-        reasons: [...reasons, 'Alineación de Confluencia Ribbon Bajista Multitemporal (15m + 1H)']
+        reasons: [...reasons, 'Confluencia Ribbon Bajista 15m + 1H (Cruce o Pullback a Zona Valor)']
       };
     }
     const pUp = isBull15 && isBull1h ? 72 : (!isBull15 && !isBull1h ? 28 : 50);
@@ -2623,20 +2646,23 @@ class TechnicalAnalysisService {
     return { success: true, pUp, pDown: 100 - pUp, bias: isGreen ? 'IMPULSO DE LIQUIDEZ ALCISTA' : 'IMPULSO DE LIQUIDEZ BAJISTA', hasSignal, signal, reasons };
   }
 
-  runStrategy25(resultsMap) {
+  runStrategy25(resultsMap, currentPrice = null, backtestStatsMap = null, marketContext = null) {
     if (!resultsMap) return { success: false, error: 'Sin datos para la Estrategia 25' };
-    const consensus = this.calculateMasterConsensus(resultsMap);
-    const lastPrice = resultsMap['Estrategia 1']?.signal?.entry || 65000;
+    const consensus = this.calculateMasterConsensus(resultsMap, backtestStatsMap, marketContext);
+    const lastPrice = currentPrice
+      || resultsMap['Estrategia 1']?.signal?.entry
+      || resultsMap['Estrategia 31']?.signal?.entry
+      || null;
 
     const reasons = [
       `Consenso Cuantitativo Ensemble: ${consensus.bias}`,
       `Votos Alcistas: ${consensus.longVotes} | Votos Bajistas: ${consensus.shortVotes}`,
-      `Probabilidad Promedio Mercado: ${consensus.avgPUp}% Alcista / ${consensus.avgPDown}% Bajista`
+      `Probabilidad Ponderada: ${consensus.avgPUp}% Alcista / ${consensus.avgPDown}% Bajista`
     ];
 
     let hasSignal = false;
     let signal = null;
-    if (consensus.hasConsensus && consensus.masterSignal) {
+    if (consensus.hasConsensus && consensus.masterSignal && lastPrice) {
       hasSignal = true;
       const isLong = consensus.masterSignal.type === 'LONG';
       const entry = lastPrice;
@@ -2667,7 +2693,7 @@ class TechnicalAnalysisService {
   /**
    * Estrategia 26: Derivatives Squeeze Regime (Funding Rate + Open Interest Climax)
    */
-  runStrategy26(candles1h, fundingRate = 0.0001) {
+  runStrategy26(candles1h, fundingRate = null, marketContext = null) {
     if (!candles1h || candles1h.length < 30) {
       return { success: false, error: 'Datos insuficientes para la Estrategia 26' };
     }
@@ -2676,13 +2702,19 @@ class TechnicalAnalysisService {
     const rsi = this.calculateRSI(prices, 14);
     const lastRsi = rsi[rsi.length - 1] || 50;
 
-    // Simular o calcular proxy de funding rate / saturación de derivados
-    const isExtremeNegative = fundingRate < -0.00015 || (lastRsi < 32 && prices[prices.length - 1] < prices[prices.length - 10]);
-    const isExtremePositive = fundingRate > 0.0004 || (lastRsi > 70 && prices[prices.length - 1] > prices[prices.length - 10]);
+    const realFunding = fundingRate !== null ? fundingRate : (marketContext?.fundingRate ?? null);
+    const oiChange = marketContext?.oiChangePct ?? null;
+
+    // Real funding extremes OR RSI+Price exhaustion when funding API unavailable
+    const isExtremeNegative = (realFunding !== null && realFunding < -0.0001) || (lastRsi < 28 && prices[prices.length - 1] < prices[prices.length - 10] * 0.985);
+    const isExtremePositive = (realFunding !== null && realFunding > 0.00035) || (lastRsi > 74 && prices[prices.length - 1] > prices[prices.length - 10] * 1.015);
+
+    const fundingText = realFunding !== null ? `${(realFunding * 100).toFixed(4)}% (Real)` : 'No disponible (Proxy RSI)';
+    const oiText = oiChange !== null ? ` | OI Δ: ${oiChange >= 0 ? '+' : ''}${oiChange}%` : '';
 
     const reasons = [
       `Precio Spot 1H: $${lastPrice.toLocaleString()}`,
-      `RSI 14 (1H): ${lastRsi.toFixed(1)}`,
+      `Funding Rate: ${fundingText}${oiText} | RSI 14: ${lastRsi.toFixed(1)}`,
       `Régimen de Derivados: ${isExtremeNegative ? '🔥 Short Squeeze Inminente' : isExtremePositive ? '⚠️ Long Squeeze Inminente' : 'Equilibrio de Apalancamiento'}`
     ];
 
@@ -2927,7 +2959,7 @@ class TechnicalAnalysisService {
     }
     const lastPrice = parseFloat(candles5m[candles5m.length - 1].close);
     const lastCandle = candles5m[candles5m.length - 1];
-    const prevCandle = candles5m[candles5m.length - 2];
+    const effectiveCvd = cvd5m !== 0 ? cvd5m : (lastCandle.volumeDeltaUsd || 0);
 
     const open = parseFloat(lastCandle.open);
     const close = parseFloat(lastCandle.close);
@@ -2938,14 +2970,14 @@ class TechnicalAnalysisService {
     const lowerWick = Math.min(open, close) - low;
     const upperWick = high - Math.max(open, close);
 
-    const isBullishAbsorption = candleRange > 0 && (lowerWick / candleRange) >= 0.55 && (cvd5m < 0 || close > open);
-    const isBearishAbsorption = candleRange > 0 && (upperWick / candleRange) >= 0.55 && (cvd5m > 0 || close < open);
+    const isBullishAbsorption = candleRange > 0 && (lowerWick / candleRange) >= 0.58 && (effectiveCvd < 0 || close > open);
+    const isBearishAbsorption = candleRange > 0 && (upperWick / candleRange) >= 0.58 && (effectiveCvd > 0 || close < open);
 
     const reasons = [
       `Precio Spot 5m: $${lastPrice.toLocaleString()}`,
       `Mecha Inferior (Absorción Compras): ${candleRange > 0 ? ((lowerWick / candleRange) * 100).toFixed(0) : 0}%`,
       `Mecha Superior (Absorción Ventas): ${candleRange > 0 ? ((upperWick / candleRange) * 100).toFixed(0) : 0}%`,
-      `Order Flow CVD 5m: ${cvd5m >= 0 ? '+' : ''}${cvd5m.toLocaleString()} USD`
+      `Order Flow CVD 5m: ${effectiveCvd >= 0 ? '+' : ''}${Math.round(effectiveCvd).toLocaleString()} USD`
     ];
 
     let hasSignal = false;
@@ -3054,30 +3086,31 @@ class TechnicalAnalysisService {
   runStrategy42(candles15m) { return ExtendedStrategies.runStrategy42(candles15m); }
   runStrategy43(candles4h) { return ExtendedStrategies.runStrategy43(candles4h); }
   runStrategy44(candles1h) { return ExtendedStrategies.runStrategy44(candles1h); }
-  runStrategy45(candles1h, fundingRate) { return ExtendedStrategies.runStrategy45(candles1h, fundingRate); }
-  runStrategy46(candles1h) { return ExtendedStrategies.runStrategy46(candles1h); }
+  runStrategy45(candles1h, fundingRate = null, marketContext = null) { return ExtendedStrategies.runStrategy45(candles1h, fundingRate, marketContext); }
+  runStrategy46(candles1h, marketContext = null) { return ExtendedStrategies.runStrategy46(candles1h, marketContext); }
   runStrategy47(candles1h) { return ExtendedStrategies.runStrategy47(candles1h); }
   runStrategy48(candles4h, candles1d) { return ExtendedStrategies.runStrategy48(candles4h, candles1d); }
   runStrategy49(candles1h, candles4h) { return ExtendedStrategies.runStrategy49(candles1h, candles4h); }
   runStrategy50(candles1d) { return ExtendedStrategies.runStrategy50(candles1d); }
-  runStrategy51(candles15m, lastBtcPrice) { return ExtendedStrategies.runStrategy51(candles15m, lastBtcPrice); }
-  runStrategy52(candles5m, candles15m, cvd5m) { return ExtendedStrategies.runStrategy52(candles5m, candles15m, cvd5m); }
+  runStrategy51(candles15m, lastBtcPrice, marketContext = null) { return ExtendedStrategies.runStrategy51(candles15m, lastBtcPrice, marketContext); }
+  runStrategy52(candles5m, candles15m, cvd5m, marketContext = null) { return ExtendedStrategies.runStrategy52(candles5m, candles15m, cvd5m, marketContext); }
   runStrategy53(candles15m) { return ExtendedStrategies.runStrategy53(candles15m); }
   runStrategy54(candles5m) { return ExtendedStrategies.runStrategy54(candles5m); }
-  runStrategy55(candles15m, candles1h) { return ExtendedStrategies.runStrategy55(candles15m, candles1h); }
-  runStrategy56(candles15m, cvd5m) { return ExtendedStrategies.runStrategy56(candles15m, cvd5m); }
+  runStrategy55(candles15m, candles1h, marketContext = null) { return ExtendedStrategies.runStrategy55(candles15m, candles1h, marketContext); }
+  runStrategy56(candles15m, cvd5m, marketContext = null) { return ExtendedStrategies.runStrategy56(candles15m, cvd5m, marketContext); }
   runStrategy57(candles5m, cvd5m) { return ExtendedStrategies.runStrategy57(candles5m, cvd5m); }
   runStrategy58(klinesMap) { return ExtendedStrategies.runStrategy58(klinesMap); }
-  runStrategy59(candles1h, fundingRate) { return ExtendedStrategies.runStrategy59(candles1h, fundingRate); }
-  runStrategy60(resultsMap, signalsHistory) { return ExtendedStrategies.runStrategy60(resultsMap, signalsHistory); }
+  runStrategy59(candles1h, fundingRate = null, marketContext = null) { return ExtendedStrategies.runStrategy59(candles1h, fundingRate, marketContext); }
+  runStrategy60(resultsMap, signalsHistory, backtestStatsMap = null, currentPrice = null, marketContext = null) { return ExtendedStrategies.runStrategy60(resultsMap, signalsHistory, backtestStatsMap, currentPrice, marketContext); }
 
   calculateMarketRegime(klinesMap) { return ExtendedStrategies.calculateMarketRegime(klinesMap); }
-  calculateMagneticZones(klinesMap, lastPrice) { return ExtendedStrategies.calculateMagneticZones(klinesMap, lastPrice); }
+  calculateMagneticZones(klinesMap, lastPrice, marketContext = null) { return ExtendedStrategies.calculateMagneticZones(klinesMap, lastPrice, marketContext); }
 
   /**
-   * Calculates a Master Consensus Signal across all 60 strategy algorithms.
+   * Calculates an Edge-Weighted Master Consensus Signal across all 60 strategy algorithms.
+   * Weights proven backtest winners higher and factors in real derivatives/orderbook context.
    */
-  calculateMasterConsensus(resultsMap) {
+  calculateMasterConsensus(resultsMap, backtestStatsMap = null, marketContext = null) {
     if (!resultsMap) return { hasConsensus: false, bias: 'NEUTRAL / SIN CONSENSO' };
 
     const families = {
@@ -3091,8 +3124,10 @@ class TechnicalAnalysisService {
 
     let longVotes = 0;
     let shortVotes = 0;
-    let totalPUp = 0;
-    let countPUp = 0;
+    let weightedPUpSum = 0;
+    let totalWeightSum = 0;
+    let weightedLongSignal = 0;
+    let weightedShortSignal = 0;
     const agreeingLongStrats = [];
     const agreeingShortStrats = [];
     const activeFamiliesLong = new Set();
@@ -3100,19 +3135,32 @@ class TechnicalAnalysisService {
 
     Object.entries(families).forEach(([famName, stratNames]) => {
       stratNames.forEach(stratName => {
+        if (stratName === 'Estrategia 25' || stratName === 'Estrategia 60') return; // Avoid circular voting
         const res = resultsMap[stratName];
         if (res && res.success) {
+          // Compute adaptive weight from historical backtest accuracy (default 1.0)
+          let weight = famName === 'PropietariasElite' ? 1.25 : 1.0;
+          const bt = backtestStatsMap?.[stratName];
+          if (bt && bt.totalTrades >= 3) {
+            // Boost winners (PF > 1.3 & WR >= 55%), penalize losing strategies
+            const pfFactor = Math.min(2.2, Math.max(0.35, bt.profitFactor || 1.0));
+            const wrFactor = bt.winRate >= 60 ? 1.4 : bt.winRate >= 50 ? 1.0 : 0.45;
+            weight *= (pfFactor * wrFactor);
+          }
+
           if (res.pUp !== undefined) {
-            totalPUp += res.pUp;
-            countPUp++;
+            weightedPUpSum += res.pUp * weight;
+            totalWeightSum += weight;
           }
           if (res.hasSignal && res.signal) {
             if (res.signal.type === 'LONG') {
               longVotes++;
+              weightedLongSignal += weight;
               agreeingLongStrats.push(stratName);
               activeFamiliesLong.add(famName);
             } else if (res.signal.type === 'SHORT') {
               shortVotes++;
+              weightedShortSignal += weight;
               agreeingShortStrats.push(stratName);
               activeFamiliesShort.add(famName);
             }
@@ -3121,17 +3169,38 @@ class TechnicalAnalysisService {
       });
     });
 
-    const avgPUp = countPUp > 0 ? Math.round(totalPUp / countPUp) : 50;
+    // Apply real microstructure nudge (Coinbase Premium, OrderBook Imbalance, Whale vs Retail L/S)
+    let microBiasShift = 0;
+    if (marketContext) {
+      if (marketContext.coinbasePremiumPct !== null) {
+        if (marketContext.coinbasePremiumPct > 0.03) microBiasShift += 2.5;
+        else if (marketContext.coinbasePremiumPct < -0.03) microBiasShift -= 2.5;
+      }
+      if (marketContext.orderBookImbalancePct !== null) {
+        if (marketContext.orderBookImbalancePct > 12) microBiasShift += 2.0;
+        else if (marketContext.orderBookImbalancePct < -12) microBiasShift -= 2.0;
+      }
+      if (marketContext.whaleLongShortRatio !== null && marketContext.retailLongShortRatio !== null) {
+        if (marketContext.whaleLongShortRatio > marketContext.retailLongShortRatio * 1.1) microBiasShift += 2.0;
+        else if (marketContext.whaleLongShortRatio < marketContext.retailLongShortRatio * 0.9) microBiasShift -= 2.0;
+      }
+    }
+
+    const rawAvgPUp = totalWeightSum > 0 ? (weightedPUpSum / totalWeightSum) : 50;
+    const avgPUp = Math.max(10, Math.min(90, Math.round(rawAvgPUp + microBiasShift)));
     const avgPDown = 100 - avgPUp;
 
     let masterSignal = null;
     let hasConsensus = false;
     let conviction = 'NEUTRAL';
-    let bias = 'NEUTRAL / SIN CONSENSO';
+    let bias = 'NEUTRAL / ESPERAR CONFIRMACIÓN';
 
-    if (longVotes >= 3 && activeFamiliesLong.size >= 2 && avgPUp >= 55) {
+    const netDominanceLong = longVotes >= 3 && activeFamiliesLong.size >= 2 && weightedLongSignal > weightedShortSignal * 1.35 && avgPUp >= 55;
+    const netDominanceShort = shortVotes >= 3 && activeFamiliesShort.size >= 2 && weightedShortSignal > weightedLongSignal * 1.35 && avgPDown >= 55;
+
+    if (netDominanceLong) {
       hasConsensus = true;
-      conviction = activeFamiliesLong.size >= 3 ? 'ALTA (3+ Familias)' : 'MEDIA';
+      conviction = (activeFamiliesLong.size >= 3 && avgPUp >= 62) ? 'ALTA (3+ Familias)' : 'MEDIA';
       bias = 'COMPRA INSTITUCIONAL / CONSENSO ALCISTA 🟢';
 
       masterSignal = {
@@ -3144,12 +3213,12 @@ class TechnicalAnalysisService {
         avgPDown,
         reasons: [
           `Confluencia de ${longVotes} estrategias en ${activeFamiliesLong.size} familias (${Array.from(activeFamiliesLong).join(', ')})`,
-          `Probabilidad promedio alcista del mercado: ${avgPUp}%`
+          `Probabilidad ponderada alcista: ${avgPUp}%`
         ]
       };
-    } else if (shortVotes >= 3 && activeFamiliesShort.size >= 2 && avgPDown >= 55) {
+    } else if (netDominanceShort) {
       hasConsensus = true;
-      conviction = activeFamiliesShort.size >= 3 ? 'ALTA (3+ Familias)' : 'MEDIA';
+      conviction = (activeFamiliesShort.size >= 3 && avgPDown >= 62) ? 'ALTA (3+ Familias)' : 'MEDIA';
       bias = 'VENTA INSTITUCIONAL / CONSENSO BAJISTA 🔴';
 
       masterSignal = {
@@ -3162,7 +3231,7 @@ class TechnicalAnalysisService {
         avgPDown,
         reasons: [
           `Confluencia de ${shortVotes} estrategias en ${activeFamiliesShort.size} familias (${Array.from(activeFamiliesShort).join(', ')})`,
-          `Probabilidad promedio bajista del mercado: ${avgPDown}%`
+          `Probabilidad ponderada bajista: ${avgPDown}%`
         ]
       };
     }

@@ -52,11 +52,11 @@ class DivergenceQuantService {
         strat2QuantSqueeze,
         activeSignals,
         radar: {
-          divergence15m: this.detectDivergenceInCandles(valid15m || valid1h),
-          divergence1h: this.detectDivergenceInCandles(valid1h),
-          divergence4h: this.detectDivergenceInCandles(valid4h),
-          squeeze1h: this.calculateSqueezeState(valid1h),
-          squeeze4h: this.calculateSqueezeState(valid4h)
+          divergence15m: this.detectDivergenceInCandles(valid15m || valid1h, '15M'),
+          divergence1h: this.detectDivergenceInCandles(valid1h, '1H'),
+          divergence4h: this.detectDivergenceInCandles(valid4h, '4H'),
+          squeeze1h: this.calculateSqueezeState(valid1h, '1H'),
+          squeeze4h: this.calculateSqueezeState(valid4h, '4H')
         }
       };
 
@@ -73,8 +73,8 @@ class DivergenceQuantService {
    * ESTRATEGIA 1: Divergencias RSI / MACD + Confirmación de Volumen
    */
   analyzeDivergenceStrategy(k15m, k1h, k4h, currentPrice) {
-    const div1h = this.detectDivergenceInCandles(k1h);
-    const div4h = this.detectDivergenceInCandles(k4h);
+    const div1h = this.detectDivergenceInCandles(k1h, '1H');
+    const div4h = this.detectDivergenceInCandles(k4h, '4H');
 
     const activeDiv = div1h.type !== 'NONE' ? div1h : div4h;
 
@@ -145,8 +145,8 @@ class DivergenceQuantService {
    * ESTRATEGIA 2: Compresión Cuantitativa Institucional (Quant Volatility Squeeze & Liquidity Breakout)
    */
   analyzeQuantSqueezeStrategy(k15m, k1h, k4h, currentPrice) {
-    const sq1h = this.calculateSqueezeState(k1h);
-    const sq4h = this.calculateSqueezeState(k4h);
+    const sq1h = this.calculateSqueezeState(k1h, '1H');
+    const sq4h = this.calculateSqueezeState(k4h, '4H');
 
     const activeSq = sq1h.isFired ? sq1h : sq4h;
 
@@ -218,8 +218,8 @@ class DivergenceQuantService {
   /**
    * Detecta Divergencias en un set de velas
    */
-  detectDivergenceInCandles(candles) {
-    if (!candles || candles.length < 60) return { type: 'NONE', timeframe: '1H' };
+  detectDivergenceInCandles(candles, timeframeLabel = '1H') {
+    if (!candles || candles.length < 60) return { type: 'NONE', timeframe: timeframeLabel };
 
     const closes = candles.map(c => c.close);
     const rsi = technicalAnalysisService.calculateRSI(closes, 14);
@@ -235,50 +235,54 @@ class DivergenceQuantService {
 
     // Divergencia Alcista Regular
     if (pCurrent < pPrevLow && rsiCurrent > rsiPrevLow && rsiCurrent < 45) {
-      return { type: 'REGULAR_BULLISH', timeframe: '1H', rsiValue: rsiCurrent };
+      return { type: 'REGULAR_BULLISH', timeframe: timeframeLabel, rsiValue: rsiCurrent };
     }
 
     // Divergencia Bajista Regular
     if (pCurrent > pPrevHigh && rsiCurrent < rsiPrevHigh && rsiCurrent > 55) {
-      return { type: 'REGULAR_BEARISH', timeframe: '1H', rsiValue: rsiCurrent };
+      return { type: 'REGULAR_BEARISH', timeframe: timeframeLabel, rsiValue: rsiCurrent };
     }
 
     // Divergencia Oculta Alcista
     if (pCurrent > pPrevLow && rsiCurrent < rsiPrevLow && rsiCurrent < 48) {
-      return { type: 'HIDDEN_BULLISH', timeframe: '1H', rsiValue: rsiCurrent };
+      return { type: 'HIDDEN_BULLISH', timeframe: timeframeLabel, rsiValue: rsiCurrent };
     }
 
-    return { type: 'NONE', timeframe: '1H' };
+    return { type: 'NONE', timeframe: timeframeLabel };
   }
 
   /**
    * Calcula el estado de Bollinger Squeeze vs Keltner Channels
    */
-  calculateSqueezeState(candles) {
-    if (!candles || candles.length < 50) return { inSqueeze: false, isFired: false, direction: 'BUY', timeframe: '1H' };
+  calculateSqueezeState(candles, timeframeLabel = '1H') {
+    if (!candles || candles.length < 50) return { inSqueeze: false, isFired: false, direction: 'BUY', timeframe: timeframeLabel };
 
     const closes = candles.map(c => c.close);
     const bb = technicalAnalysisService.calculateBollingerBands(closes, 20, 2);
     const atr = technicalAnalysisService.calculateATR(candles, 20);
 
     const len = closes.length;
-    const lastBB = bb[len - 1];
-    const prevBB = bb[len - 2];
+    const lastBB = { upper: bb.upper[len - 1], middle: bb.middle[len - 1], lower: bb.lower[len - 1] };
+    const prevBB = { upper: bb.upper[len - 2], middle: bb.middle[len - 2], lower: bb.lower[len - 2] };
     const lastAtr = atr[len - 1] || closes[len - 1] * 0.015;
-    const lastSMA = lastBB ? lastBB.middle : closes[len - 1];
+    const prevAtr = atr[len - 2] || lastAtr;
+    const lastSMA = lastBB.middle || closes[len - 1];
+    const prevSMA = prevBB.middle || lastSMA;
 
     const keltnerUpper = lastSMA + (lastAtr * 1.5);
     const keltnerLower = lastSMA - (lastAtr * 1.5);
+    const prevKeltnerUpper = prevSMA + (prevAtr * 1.5);
+    const prevKeltnerLower = prevSMA - (prevAtr * 1.5);
 
     // En compresión (Squeeze) si las Bollinger están dentro de Keltner
-    const inSqueeze = lastBB && lastBB.upper < keltnerUpper && lastBB.lower > keltnerLower;
+    const inSqueeze = lastBB.upper !== null && lastBB.upper < keltnerUpper && lastBB.lower > keltnerLower;
 
     // Disparador de Ruptura
-    const prevInSqueeze = prevBB && prevBB.upper < (lastSMA + lastAtr * 1.5) && prevBB.lower > (lastSMA - lastAtr * 1.5);
+    const prevInSqueeze = prevBB.upper !== null && prevBB.upper < prevKeltnerUpper && prevBB.lower > prevKeltnerLower;
     const isFired = prevInSqueeze && !inSqueeze;
     const direction = closes[len - 1] > lastSMA ? 'BUY' : 'SELL';
 
-    return { inSqueeze, isFired, direction, timeframe: '1H' };
+    return { inSqueeze, isFired, direction, timeframe: timeframeLabel };
   }
 
   /**

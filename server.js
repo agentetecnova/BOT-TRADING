@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import technicalAnalysisService from './src/services/TechnicalAnalysisService.js';
+import marketDataService from './src/services/MarketDataService.js';
+import backtestEngine from './src/services/BacktestEngine.js';
 import btcMasterAnalysisService from './src/services/BTCMasterAnalysisService.js';
 import divergenceQuantService from './src/services/DivergenceQuantService.js';
 import SignalHistoryService from './src/services/SignalHistoryService.js';
@@ -274,6 +276,9 @@ async function runContinuousAnalysis() {
       lastBtcPrice = k15m[k15m.length - 1].close;
     }
 
+    const marketContext = await marketDataService.fetchMarketContext(lastBtcPrice);
+    const liveCvd = k5m && k5m.length > 0 ? Math.round(k5m[k5m.length - 1].volumeDeltaUsd || 0) : 0;
+
     const klinesMap = { '5m': k5m, '15m': k15m, '1h': k1h, '4h': k4h };
 
     const res1 = technicalAnalysisService.runStrategy1(k15m);
@@ -300,11 +305,11 @@ async function runContinuousAnalysis() {
     const res22 = technicalAnalysisService.runStrategy22(k1h);
     const res23 = technicalAnalysisService.runStrategy23(klinesMap);
     const res24 = technicalAnalysisService.runStrategy24(k15m);
-    const res26 = technicalAnalysisService.runStrategy26(k1h);
+    const res26 = technicalAnalysisService.runStrategy26(k1h, marketContext?.fundingRate ?? null, marketContext);
     const res27 = technicalAnalysisService.runStrategy27(k15m);
     const res28 = technicalAnalysisService.runStrategy28(k1h, k1d);
     const res29 = technicalAnalysisService.runStrategy29(k1h, k15m);
-    const res30 = technicalAnalysisService.runStrategy30(k5m, 0);
+    const res30 = technicalAnalysisService.runStrategy30(k5m, liveCvd);
 
     // Estrategias 31 a 59
     const res31 = technicalAnalysisService.runStrategy31(k15m);
@@ -321,21 +326,21 @@ async function runContinuousAnalysis() {
     const res42 = technicalAnalysisService.runStrategy42(k15m);
     const res43 = technicalAnalysisService.runStrategy43(k4h);
     const res44 = technicalAnalysisService.runStrategy44(k1h);
-    const res45 = technicalAnalysisService.runStrategy45(k1h);
-    const res46 = technicalAnalysisService.runStrategy46(k1h);
+    const res45 = technicalAnalysisService.runStrategy45(k1h, marketContext?.fundingRate ?? null, marketContext);
+    const res46 = technicalAnalysisService.runStrategy46(k1h, marketContext);
     const res47 = technicalAnalysisService.runStrategy47(k1h);
     const res48 = technicalAnalysisService.runStrategy48(k4h, k1d);
     const res49 = technicalAnalysisService.runStrategy49(k1h, k4h);
     const res50 = technicalAnalysisService.runStrategy50(k1d);
-    const res51 = technicalAnalysisService.runStrategy51(k15m, lastBtcPrice);
-    const res52 = technicalAnalysisService.runStrategy52(k5m, k15m, 0);
+    const res51 = technicalAnalysisService.runStrategy51(k15m, lastBtcPrice, marketContext);
+    const res52 = technicalAnalysisService.runStrategy52(k5m, k15m, liveCvd, marketContext);
     const res53 = technicalAnalysisService.runStrategy53(k15m);
     const res54 = technicalAnalysisService.runStrategy54(k5m);
-    const res55 = technicalAnalysisService.runStrategy55(k15m, k1h);
-    const res56 = technicalAnalysisService.runStrategy56(k15m, 0);
-    const res57 = technicalAnalysisService.runStrategy57(k5m, 0);
+    const res55 = technicalAnalysisService.runStrategy55(k15m, k1h, marketContext);
+    const res56 = technicalAnalysisService.runStrategy56(k15m, liveCvd, marketContext);
+    const res57 = technicalAnalysisService.runStrategy57(k5m, liveCvd);
     const res58 = technicalAnalysisService.runStrategy58(klinesMap);
-    const res59 = technicalAnalysisService.runStrategy59(k1h);
+    const res59 = technicalAnalysisService.runStrategy59(k1h, marketContext?.fundingRate ?? null, marketContext);
 
     const partialResults = {
       'Estrategia 1': res1, 'Estrategia 2': res2, 'Estrategia 3': res3, 'Estrategia 4': res4, 'Estrategia 5': res5,
@@ -352,11 +357,12 @@ async function runContinuousAnalysis() {
       'Estrategia 56': res56, 'Estrategia 57': res57, 'Estrategia 58': res58, 'Estrategia 59': res59
     };
 
-    const res25 = technicalAnalysisService.runStrategy25(partialResults);
-    const res60 = technicalAnalysisService.runStrategy60(partialResults, signalsHistory);
+    const btStats = backtestEngine.runFullBacktest({ k5m, k15m, k1h, k4h, k1d });
+    const res25 = technicalAnalysisService.runStrategy25(partialResults, lastBtcPrice, btStats, marketContext);
+    const res60 = technicalAnalysisService.runStrategy60(partialResults, signalsHistory, btStats, lastBtcPrice, marketContext);
     const resultsMap = { ...partialResults, 'Estrategia 25': res25, 'Estrategia 60': res60 };
 
-    const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap);
+    const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap, btStats, marketContext);
     latestAnalysis = { ...resultsMap, masterConsensus };
 
     // Verificar TP / SL / MFE por precio en señales activas

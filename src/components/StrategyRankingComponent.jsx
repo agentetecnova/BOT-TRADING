@@ -30,7 +30,7 @@ export default function StrategyRankingComponent({ signalsHistory, onSelectStrat
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <span style={{ fontSize: '1.6rem' }}>🏆</span>
             <h3 style={{ fontSize: '1.3rem', color: '#fff', margin: 0, fontWeight: 800 }}>
-              Ranking de Efectividad & Auditoría Predictiva (25 Estrategias BTC)
+              Ranking de Efectividad & Auditoría Predictiva (60 Estrategias BTC)
             </h3>
           </div>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.3rem' }}>
@@ -47,7 +47,7 @@ export default function StrategyRankingComponent({ signalsHistory, onSelectStrat
           fontSize: '0.82rem',
           fontWeight: 800
         }}>
-          ⚡ 25 Modelos Cuantitativos Activos
+          ⚡ 60 Modelos Cuantitativos Activos
         </div>
       </div>
 

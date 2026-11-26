@@ -15,6 +15,7 @@
  */
 
 import technicalAnalysisService from './TechnicalAnalysisService.js';
+import marketDataService from './MarketDataService.js';
 
 class BTCMasterAnalysisService {
   /**
@@ -69,8 +70,22 @@ class BTCMasterAnalysisService {
       // Estimación de Probabilidades para las próximas 24h
       const probabilities = this.estimateProbabilities(compositeScore);
 
-      // Obtener Índice de Miedo y Codicia (Fear & Greed Index)
-      const fearAndGreed = await this.fetchFearAndGreedIndex();
+      // Obtener Índice de Miedo y Codicia y Datos Reales de Derivados en paralelo
+      const [fearAndGreed, marketCtx] = await Promise.all([
+        this.fetchFearAndGreedIndex(),
+        marketDataService.fetchMarketContext(currentPrice)
+      ]);
+
+      // Inyectar métricas reales de derivados si están disponibles
+      if (marketCtx && marketCtx.fundingRatePct !== null) {
+        analysis4h.advanced.onchain = {
+          fundingRate: marketCtx.fundingRatePct,
+          oiChangePct: marketCtx.oiChangePct,
+          coinbasePremiumPct: marketCtx.coinbasePremiumPct,
+          whaleLongShortRatio: marketCtx.whaleLongShortRatio,
+          isRealData: true
+        };
+      }
 
       // Cálculo del Mapa / Densidad de Liquidaciones (Liquidation Heatmap)
       const liquidationHeatmap = this.calculateLiquidationHeatmap(currentPrice, k1d, k4h);
@@ -647,12 +662,8 @@ class BTCMasterAnalysisService {
   }
 
   simulateOnChainMetrics(currentPrice) {
-    // Estimación matemática basada en distancia a promedios históricos
-    const fundingRate = parseFloat((0.008 + (Math.sin(Date.now() / 10000000) * 0.015)).toFixed(4));
-    const puellMultiple = parseFloat((1.1 + (Math.cos(Date.now() / 20000000) * 0.4)).toFixed(2));
-    const hashRibbonsCross = fundingRate > 0;
-
-    return { fundingRate, puellMultiple, hashRibbonsCross };
+    // Fallback neutro cuando aún no se hidrató MarketDataService (sin valores inventados)
+    return { fundingRate: 0.01, puellMultiple: null, hashRibbonsCross: true, isRealData: false };
   }
 
   detectCandlePatterns(candles) {
@@ -839,7 +850,7 @@ class BTCMasterAnalysisService {
    */
   async fetchFearAndGreedIndex() {
     try {
-      const response = await fetch('https://api.alternative.me/f2gap/?limit=1');
+      const response = await fetch('https://api.alternative.me/fng/?limit=1');
       if (response.ok) {
         const json = await response.json();
         if (json && json.data && json.data.length > 0) {
