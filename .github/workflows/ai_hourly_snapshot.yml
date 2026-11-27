@@ -39,6 +39,7 @@ jobs:
           git rm -rf --cached . > /dev/null 2>&1 || true
           find . -maxdepth 1 ! -name '.' ! -name '.git' -exec rm -rf {} +
           cp /tmp/ai_out/ai_oracle_snapshot.json ai_oracle_snapshot.json
-          git add ai_oracle_snapshot.json
+          python -c 'import json; open("vercel.json","w").write(json.dumps({"git":{"deploymentEnabled":{"ai-snapshot":False}},"ignoreCommand":"exit 0"}, indent=2))'
+          git add ai_oracle_snapshot.json vercel.json
           git commit -m "chore(ai): hourly BTCUSDT snapshot [skip ci]"
           git push --force origin ai-snapshot-temp:ai-snapshot
