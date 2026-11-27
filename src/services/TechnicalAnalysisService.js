@@ -10,6 +10,7 @@
  */
 
 import { ExtendedStrategies } from './ExtendedStrategies.js';
+import { ExpertAlphaStrategies } from './ExpertAlphaStrategies.js';
 
 class TechnicalAnalysisService {
   /**
@@ -3103,15 +3104,33 @@ class TechnicalAnalysisService {
   runStrategy59(candles1h, fundingRate = null, marketContext = null) { return ExtendedStrategies.runStrategy59(candles1h, fundingRate, marketContext); }
   runStrategy60(resultsMap, signalsHistory, backtestStatsMap = null, currentPrice = null, marketContext = null) { return ExtendedStrategies.runStrategy60(resultsMap, signalsHistory, backtestStatsMap, currentPrice, marketContext); }
 
+  // ============================================================
+  // ESTRATEGIAS 61 A 70: 10 DIFERENCIALES DE EXPERTO (ExpertAlphaStrategies)
+  // ============================================================
+  runStrategy61(k1h, k4h = null) { return ExpertAlphaStrategies.runStrategy61(k1h, k4h); }
+  runStrategy62(k1h) { return ExpertAlphaStrategies.runStrategy62(k1h); }
+  runStrategy63(k15m) { return ExpertAlphaStrategies.runStrategy63(k15m); }
+  runStrategy64(k15m) { return ExpertAlphaStrategies.runStrategy64(k15m); }
+  runStrategy65(k15m) { return ExpertAlphaStrategies.runStrategy65(k15m); }
+  runStrategy66(k4h) { return ExpertAlphaStrategies.runStrategy66(k4h); }
+  runStrategy67(k1h, marketContext = null) { return ExpertAlphaStrategies.runStrategy67(k1h, marketContext); }
+  runStrategy68(k1h) { return ExpertAlphaStrategies.runStrategy68(k1h); }
+  runStrategy69(k15m, marketContext = null) { return ExpertAlphaStrategies.runStrategy69(k15m, marketContext); }
+  runStrategy70(k1h) { return ExpertAlphaStrategies.runStrategy70(k1h); }
+
   calculateMarketRegime(klinesMap) { return ExtendedStrategies.calculateMarketRegime(klinesMap); }
   calculateMagneticZones(klinesMap, lastPrice, marketContext = null) { return ExtendedStrategies.calculateMagneticZones(klinesMap, lastPrice, marketContext); }
 
   /**
-   * Calculates an Edge-Weighted Master Consensus Signal across all 60 strategy algorithms.
+   * Calculates an Edge-Weighted Master Consensus Signal across all active strategy algorithms (excluding disabled).
    * Weights proven backtest winners higher and factors in real derivatives/orderbook context.
    */
-  calculateMasterConsensus(resultsMap, backtestStatsMap = null, marketContext = null) {
+  calculateMasterConsensus(resultsMap, backtestStatsMap = null, marketContext = null, disabledStrategies = null) {
     if (!resultsMap) return { hasConsensus: false, bias: 'NEUTRAL / SIN CONSENSO' };
+
+    const disabledSet = disabledStrategies instanceof Set
+      ? disabledStrategies
+      : new Set(Array.isArray(disabledStrategies) ? disabledStrategies : []);
 
     const families = {
       TendenciaYMomentum: ['Estrategia 1', 'Estrategia 2', 'Estrategia 3', 'Estrategia 4', 'Estrategia 5', 'Estrategia 6', 'Estrategia 7', 'Estrategia 8', 'Estrategia 9', 'Estrategia 10'],
@@ -3119,7 +3138,8 @@ class TechnicalAnalysisService {
       FlujoYMicroestructura: ['Estrategia 21', 'Estrategia 22', 'Estrategia 23', 'Estrategia 24', 'Estrategia 25', 'Estrategia 26', 'Estrategia 27', 'Estrategia 28', 'Estrategia 29', 'Estrategia 30'],
       SmartMoneyLiquidez: ['Estrategia 31', 'Estrategia 32', 'Estrategia 33', 'Estrategia 34', 'Estrategia 35', 'Estrategia 36', 'Estrategia 37', 'Estrategia 38', 'Estrategia 39', 'Estrategia 40'],
       VolatilidadYDerivados: ['Estrategia 41', 'Estrategia 42', 'Estrategia 43', 'Estrategia 44', 'Estrategia 45', 'Estrategia 46', 'Estrategia 47', 'Estrategia 48', 'Estrategia 49', 'Estrategia 50'],
-      PropietariasElite: ['Estrategia 51', 'Estrategia 52', 'Estrategia 53', 'Estrategia 54', 'Estrategia 55', 'Estrategia 56', 'Estrategia 57', 'Estrategia 58', 'Estrategia 59', 'Estrategia 60']
+      PropietariasElite: ['Estrategia 51', 'Estrategia 52', 'Estrategia 53', 'Estrategia 54', 'Estrategia 55', 'Estrategia 56', 'Estrategia 57', 'Estrategia 58', 'Estrategia 59', 'Estrategia 60'],
+      ExpertAlpha: ['Estrategia 61', 'Estrategia 62', 'Estrategia 63', 'Estrategia 64', 'Estrategia 65', 'Estrategia 66', 'Estrategia 67', 'Estrategia 68', 'Estrategia 69', 'Estrategia 70']
     };
 
     let longVotes = 0;
@@ -3136,10 +3156,11 @@ class TechnicalAnalysisService {
     Object.entries(families).forEach(([famName, stratNames]) => {
       stratNames.forEach(stratName => {
         if (stratName === 'Estrategia 25' || stratName === 'Estrategia 60') return; // Avoid circular voting
+        if (disabledSet.has(stratName)) return; // Skip user-silenced losing strategies
         const res = resultsMap[stratName];
         if (res && res.success) {
           // Compute adaptive weight from historical backtest accuracy (default 1.0)
-          let weight = famName === 'PropietariasElite' ? 1.25 : 1.0;
+          let weight = (famName === 'PropietariasElite' || famName === 'ExpertAlpha') ? 1.25 : 1.0;
           const bt = backtestStatsMap?.[stratName];
           if (bt && bt.totalTrades >= 3) {
             // Boost winners (PF > 1.3 & WR >= 55%), penalize losing strategies

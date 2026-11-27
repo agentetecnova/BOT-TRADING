@@ -72,7 +72,17 @@ export class StrategyRankingService {
       'Estrategia 57: QuantAlpha-2: Fractal Order-Flow Exhaustion (FOEIR)',
       'Estrategia 58: QuantAlpha-3: Momentum Ribbon Adaptive ATR (MTM-RAT)',
       'Estrategia 59: QuantAlpha-4: Funding & OI Divergence Cascade (DFOIDC)',
-      'Estrategia 60: QuantAlpha-5: The Sovereign BTC Institutional Quant Ensemble'
+      'Estrategia 60: QuantAlpha-5: The Sovereign BTC Institutional Quant Ensemble',
+      'Estrategia 61: ExpertAlpha-1: Regime-Adaptive MTF Pullback (1H/4H)',
+      'Estrategia 62: ExpertAlpha-2: Volatility Squeeze + Taker Buy Thrust',
+      'Estrategia 63: ExpertAlpha-3: Liquidity Sweep + Mean-Reversion Snap',
+      'Estrategia 64: ExpertAlpha-4: Spot CVD Climax Absorption',
+      'Estrategia 65: ExpertAlpha-5: Rolling VWAP Institutional Hold',
+      'Estrategia 66: ExpertAlpha-6: 4H Swing Keltner Directional Thrust',
+      'Estrategia 67: ExpertAlpha-7: Z-Score Overextension & Funding Contrarian',
+      'Estrategia 68: ExpertAlpha-8: Institutional Engulfing Order Block',
+      'Estrategia 69: ExpertAlpha-9: NY Session Handover & US Premium Lead-Lag',
+      'Estrategia 70: ExpertAlpha-10: Asymmetric 2.3:1 Expectancy Sniper'
     ];
   }
 

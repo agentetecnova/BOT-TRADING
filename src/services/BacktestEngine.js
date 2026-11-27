@@ -213,7 +213,17 @@ class BacktestEngine {
       ['Estrategia 55', w15, (c) => svc.runStrategy55(c, w1h, null), 35, 5],
       ['Estrategia 56', w15, (c) => svc.runStrategy56(c, 0, null), 40, 5],
       ['Estrategia 57', w5, (c) => svc.runStrategy57(c, 0), 30, 4],
-      ['Estrategia 59', w1h, (c) => svc.runStrategy59(c, null, null), 40, 5]
+      ['Estrategia 59', w1h, (c) => svc.runStrategy59(c, null, null), 40, 5],
+      ['Estrategia 61', w1h, (c) => svc.runStrategy61(c, w4h), 60, 2],
+      ['Estrategia 62', w1h, (c) => svc.runStrategy62(c), 50, 2],
+      ['Estrategia 63', w15, (c) => svc.runStrategy63(c), 40, 2],
+      ['Estrategia 64', w15, (c) => svc.runStrategy64(c), 35, 2],
+      ['Estrategia 65', w15, (c) => svc.runStrategy65(c), 40, 2],
+      ['Estrategia 66', w4h, (c) => svc.runStrategy66(c), 40, 1],
+      ['Estrategia 67', w1h, (c) => svc.runStrategy67(c, null), 40, 2],
+      ['Estrategia 68', w1h, (c) => svc.runStrategy68(c), 55, 2],
+      ['Estrategia 69', w15, (c) => svc.runStrategy69(c, null), 40, 2],
+      ['Estrategia 70', w1h, (c) => svc.runStrategy70(c), 60, 2]
     ];
 
     specs.forEach(([key, candles, fn, startOffset, step]) => {

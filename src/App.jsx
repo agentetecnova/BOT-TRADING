@@ -4,6 +4,12 @@ import marketDataService from './services/MarketDataService';
 import backtestEngine from './services/BacktestEngine';
 import predictiveOracleService from './services/PredictiveOracleService';
 import aiSnapshotService from './services/AiSnapshotService';
+import StrategyRankingService from './services/StrategyRankingService';
+import {
+  evaluateStrategyHealth,
+  loadDisabledStrategies,
+  saveDisabledStrategies
+} from './utils/strategyHealth';
 import BTCMasterSheet from './components/BTCMasterSheet';
 import BTCDivergenceQuantSheet from './components/BTCDivergenceQuantSheet';
 import SignalHistoryService from './services/SignalHistoryService';
@@ -100,6 +106,7 @@ export default function App() {
   const [backtestMap, setBacktestMap] = useState({});
   const [oraclePrediction, setOraclePrediction] = useState(null);
   const [aiSnapshot, setAiSnapshot] = useState(null);
+  const [disabledStrategies, setDisabledStrategies] = useState(() => loadDisabledStrategies());
 
   // Signals History state
   const [signalsHistory, setSignalsHistory] = useState(() => SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup'));
@@ -110,10 +117,49 @@ export default function App() {
   const btcPriceRef = useRef(null);
   const cvd5mRef = useRef(0);
   const signalsHistoryRef = useRef(signalsHistory);
+  const disabledStrategiesRef = useRef(disabledStrategies);
 
   useEffect(() => { btcPriceRef.current = btcPrice; }, [btcPrice]);
   useEffect(() => { cvd5mRef.current = cvd5m; }, [cvd5m]);
   useEffect(() => { signalsHistoryRef.current = signalsHistory; }, [signalsHistory]);
+  useEffect(() => { disabledStrategiesRef.current = disabledStrategies; }, [disabledStrategies]);
+
+  const handleToggleDisableStrategy = (stratKey) => {
+    setDisabledStrategies(prev => {
+      const next = new Set(prev);
+      if (next.has(stratKey)) next.delete(stratKey);
+      else next.add(stratKey);
+      saveDisabledStrategies(next);
+      return next;
+    });
+  };
+
+  const handleDisableAllLosing = () => {
+    const rankings = StrategyRankingService.calculateStrategyRankings(signalsHistoryRef.current);
+    const rankMap = new Map(rankings.map(r => [r.shortName, r]));
+    setDisabledStrategies(prev => {
+      const next = new Set(prev);
+      for (let i = 1; i <= 70; i++) {
+        const key = `Estrategia ${i}`;
+        const health = evaluateStrategyHealth({
+          bt: backtestMap?.[key],
+          liveStats: rankMap.get(key),
+          isDisabled: false
+        });
+        if (health.status === 'LOSING') {
+          next.add(key);
+        }
+      }
+      saveDisabledStrategies(next);
+      return next;
+    });
+  };
+
+  const handleEnableAllStrategies = () => {
+    const empty = new Set();
+    saveDisabledStrategies(empty);
+    setDisabledStrategies(empty);
+  };
 
   // Auto-scroll logs
   const consoleRef = useRef(null);
@@ -511,6 +557,16 @@ export default function App() {
       const res57 = technicalAnalysisService.runStrategy57(k5m, liveCvd);
       const res58 = technicalAnalysisService.runStrategy58(klinesMap);
       const res59 = technicalAnalysisService.runStrategy59(k1h, marketContext?.fundingRate ?? null, marketContext);
+      const res61 = technicalAnalysisService.runStrategy61(k1h, k4h);
+      const res62 = technicalAnalysisService.runStrategy62(k1h);
+      const res63 = technicalAnalysisService.runStrategy63(k15m);
+      const res64 = technicalAnalysisService.runStrategy64(k15m);
+      const res65 = technicalAnalysisService.runStrategy65(k15m);
+      const res66 = technicalAnalysisService.runStrategy66(k4h);
+      const res67 = technicalAnalysisService.runStrategy67(k1h, marketContext);
+      const res68 = technicalAnalysisService.runStrategy68(k1h);
+      const res69 = technicalAnalysisService.runStrategy69(k15m, marketContext);
+      const res70 = technicalAnalysisService.runStrategy70(k1h);
 
       const partialResults = {
         'Estrategia 1': res1, 'Estrategia 2': res2, 'Estrategia 3': res3, 'Estrategia 4': res4, 'Estrategia 5': res5,
@@ -524,7 +580,9 @@ export default function App() {
         'Estrategia 41': res41, 'Estrategia 42': res42, 'Estrategia 43': res43, 'Estrategia 44': res44, 'Estrategia 45': res45,
         'Estrategia 46': res46, 'Estrategia 47': res47, 'Estrategia 48': res48, 'Estrategia 49': res49, 'Estrategia 50': res50,
         'Estrategia 51': res51, 'Estrategia 52': res52, 'Estrategia 53': res53, 'Estrategia 54': res54, 'Estrategia 55': res55,
-        'Estrategia 56': res56, 'Estrategia 57': res57, 'Estrategia 58': res58, 'Estrategia 59': res59
+        'Estrategia 56': res56, 'Estrategia 57': res57, 'Estrategia 58': res58, 'Estrategia 59': res59,
+        'Estrategia 61': res61, 'Estrategia 62': res62, 'Estrategia 63': res63, 'Estrategia 64': res64, 'Estrategia 65': res65,
+        'Estrategia 66': res66, 'Estrategia 67': res67, 'Estrategia 68': res68, 'Estrategia 69': res69, 'Estrategia 70': res70
       };
 
       // Walk-forward historical backtest on downloaded candles (cached per candle close)
@@ -551,8 +609,13 @@ export default function App() {
       setAllAnalysisMap(resultsMap);
       setAnalysisError(null);
 
-      // Calcular Consenso Maestro ponderado por backtest y microestructura real
-      const masterConsensus = technicalAnalysisService.calculateMasterConsensus(resultsMap, btStats, marketContext);
+      // Calcular Consenso Maestro ponderado por backtest y microestructura real (ignorando estrategias silenciadas)
+      const masterConsensus = technicalAnalysisService.calculateMasterConsensus(
+        resultsMap,
+        btStats,
+        marketContext,
+        disabledStrategiesRef.current
+      );
       setMasterConsensusData(masterConsensus);
 
       // Calcular Régimen de Mercado y Zonas Magnéticas reales
@@ -618,8 +681,9 @@ export default function App() {
 
   // Las señales se evalúan de forma pura hasta tocar su Take Profit (TP) o Stop Loss (SL) para registrar Win Rate real.
 
-  // Add new trading signal to history
+  // Add new trading signal to history (skip silenced strategies)
   const addNewSignal = (strategyName, strategyResult) => {
+    if (disabledStrategiesRef.current.has(strategyName)) return;
     if (!strategyResult || !strategyResult.hasSignal || !strategyResult.signal) return;
 
     setSignalsHistory(prev => {
@@ -976,7 +1040,7 @@ export default function App() {
                 transition: 'all 0.3s ease'
               }}
             >
-              📊 1. Matriz de 60 Modelos & Ranking
+              📊 1. Matriz de 70 Modelos & Ranking ({70 - disabledStrategies.size} activas)
             </button>
 
             <button 
@@ -1052,6 +1116,10 @@ export default function App() {
               marketRegime={marketRegime}
               magneticZones={magneticZones}
               masterConsensusData={masterConsensusData}
+              disabledStrategies={disabledStrategies}
+              onToggleDisableStrategy={handleToggleDisableStrategy}
+              onDisableAllLosing={handleDisableAllLosing}
+              onEnableAllStrategies={handleEnableAllStrategies}
               onFilterHistory={(stratKey) => {
                 setSelectedStratFilter(stratKey);
                 setActiveTab('history');

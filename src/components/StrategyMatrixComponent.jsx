@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import StrategyRankingService from '../services/StrategyRankingService';
+import { evaluateStrategyHealth } from '../utils/strategyHealth';
 import SignalHistoryService from '../services/SignalHistoryService';
 
 // Catálogo Maestro de las 60 Estrategias Cuantitativas de Bitcoin
@@ -74,7 +75,19 @@ export const STRATEGY_CATALOG = [
   { key: 'Estrategia 57', title: 'QuantAlpha-2: Fractal Order-Flow Exhaustion (FOEIR)', tf: '5m', style: 'EXPERT', styleLabel: '👑 Propietaria', desc: 'Mecha de rechazo >60% con volumen 2.2x y delta opuesto (trampa institucional).' },
   { key: 'Estrategia 58', title: 'QuantAlpha-3: Momentum Ribbon Adaptive ATR', tf: '15m/1H/4H', style: 'EXPERT', styleLabel: '👑 Propietaria', desc: 'Alineación de 3 temporalidades simultáneas con pullback a EMA 21.' },
   { key: 'Estrategia 59', title: 'QuantAlpha-4: Funding & OI Cascade (DFOIDC)', tf: '1H', style: 'EXPERT', styleLabel: '👑 Propietaria', desc: 'Short Squeeze inminente ante nuevo mínimo con funding fuertemente negativo.' },
-  { key: 'Estrategia 60', title: 'QuantAlpha-5: The Sovereign BTC Quant Ensemble', tf: 'MULTI', style: 'EXPERT', styleLabel: '👑 Meta-Modelo', desc: 'Pondera dinámicamente las 59 estrategias anteriores según Win Rate acumulado.' }
+  { key: 'Estrategia 60', title: 'QuantAlpha-5: The Sovereign BTC Quant Ensemble', tf: 'MULTI', style: 'EXPERT', styleLabel: '👑 Meta-Modelo', desc: 'Pondera dinámicamente las 59 estrategias anteriores según Win Rate acumulado.' },
+
+  // Bloque 7: 10 Estrategias Diferenciales de Experto (E61 a E70)
+  { key: 'Estrategia 61', title: 'Regime-Adaptive MTF Pullback', tf: '1H/4H', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Opera solo a favor de la tendencia 4H cuando 1H retrocede limpio a EMA21 con volumen.' },
+  { key: 'Estrategia 62', title: 'Squeeze + Taker Buy Aggression Thrust', tf: '1H', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Explosión tras compresión Bollinger confirmada por agresión real compradora/vendedora.' },
+  { key: 'Estrategia 63', title: 'Liquidity Sweep + Mean-Reversion Snap', tf: '15m', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Captura barridas de stops en máximos/mínimos de 20 velas que cierran de vuelta adentro.' },
+  { key: 'Estrategia 64', title: 'Spot CVD Climax Absorption', tf: '15m', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Detecta clímax de 3 velas frenado por absorción pasiva opuesta en delta spot.' },
+  { key: 'Estrategia 65', title: 'Rolling VWAP Fair-Value Hold', tf: '15m', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Defensa institucional o rechazo limpio sobre el precio justo ponderado por volumen (VWAP).' },
+  { key: 'Estrategia 66', title: '4H Swing Keltner Directional Thrust', tf: '4H', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Ruptura swing multi-día de bandas Keltner con vela de cuerpo sólido y objetivo amplio.' },
+  { key: 'Estrategia 67', title: 'Z-Score Overextension & Funding Contrarian', tf: '1H', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Reversión estadística >1.9σ combinada con extremos de apalancamiento en Funding.' },
+  { key: 'Estrategia 68', title: 'Institutional Engulfing Order Block', tf: '1H', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Envolvente de alto volumen alineada con estructura EMA50 y ratio 2:1 por ATR.' },
+  { key: 'Estrategia 69', title: 'NY Session Handover & US Premium Lead-Lag', tf: '15m', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Arranque direccional en ventana líquida Londres/NY alineado con demanda institucional US.' },
+  { key: 'Estrategia 70', title: 'Asymmetric 2.3:1 Expectancy Sniper', tf: '1H', style: 'EXPERT_ALPHA', styleLabel: '🧠 Experto Alpha', desc: 'Stop ajustado (1.15 ATR) y objetivo amplio (2.65 ATR) con giro MACD sobre EMA50.' }
 ];
 
 export default function StrategyMatrixComponent({
@@ -86,6 +99,10 @@ export default function StrategyMatrixComponent({
   marketRegime = null,
   magneticZones = null,
   masterConsensusData = null,
+  disabledStrategies = new Set(),
+  onToggleDisableStrategy,
+  onDisableAllLosing,
+  onEnableAllStrategies,
   onFilterHistory
 }) {
   const [selectedStyle, setSelectedStyle] = useState('ALL');
@@ -122,6 +139,22 @@ export default function StrategyMatrixComponent({
     return signalsHistory.filter(s => s.status === 'PENDING').length;
   }, [signalsHistory]);
 
+  const { healthMap, healthCounts } = useMemo(() => {
+    const hMap = new Map();
+    const counts = { PROFITABLE: 0, TESTING: 0, LOSING: 0, DISABLED: 0 };
+    const disabledSet = disabledStrategies instanceof Set ? disabledStrategies : new Set(disabledStrategies || []);
+    STRATEGY_CATALOG.forEach(strat => {
+      const h = evaluateStrategyHealth({
+        bt: backtestMap?.[strat.key],
+        liveStats: rankingMap.get(strat.key),
+        isDisabled: disabledSet.has(strat.key)
+      });
+      hMap.set(strat.key, h);
+      if (counts[h.status] !== undefined) counts[h.status] += 1;
+    });
+    return { healthMap: hMap, healthCounts: counts };
+  }, [backtestMap, rankingMap, disabledStrategies]);
+
   // Formatear precios
   const formatPrice = (p) => {
     if (typeof p !== 'number' || isNaN(p)) return '--';
@@ -155,7 +188,12 @@ export default function StrategyMatrixComponent({
         if (!liveOk && !btOk) return false;
       }
 
-      // Filtro por estilo / estado
+      // Filtro por estilo / semáforo de salud / estado
+      const health = healthMap.get(strat.key);
+      if (selectedStyle === 'HEALTH_PROFITABLE') return health?.status === 'PROFITABLE';
+      if (selectedStyle === 'HEALTH_TESTING') return health?.status === 'TESTING';
+      if (selectedStyle === 'HEALTH_LOSING') return health?.status === 'LOSING';
+      if (selectedStyle === 'HEALTH_DISABLED') return health?.status === 'DISABLED';
       if (selectedStyle === 'ACTIVE') {
         return signalsHistory.some(s => s.strategy === strat.key && s.status === 'PENDING');
       }
@@ -185,8 +223,8 @@ export default function StrategyMatrixComponent({
         valA = (statsA.totalSignals > 0 && statsA.winRate !== null) ? statsA.winRate : (btA?.winRate ?? -1);
         valB = (statsB.totalSignals > 0 && statsB.winRate !== null) ? statsB.winRate : (btB?.winRate ?? -1);
       } else if (sortField === 'mfe') {
-        valA = statsA.avgMfe ?? -1;
-        valB = statsB.avgMfe ?? -1;
+        valA = btA?.profitFactor ?? statsA.avgMfe ?? -1;
+        valB = btB?.profitFactor ?? statsB.avgMfe ?? -1;
       } else if (sortField === 'pnl') {
         valA = statsA.totalSignals > 0 ? (statsA.totalPnl ?? -999) : (btA?.totalPnl ?? -999);
         valB = statsB.totalSignals > 0 ? (statsB.totalPnl ?? -999) : (btB?.totalPnl ?? -999);
@@ -201,7 +239,7 @@ export default function StrategyMatrixComponent({
 
       return sortAsc ? valA - valB : valB - valA;
     });
-  }, [searchQuery, selectedStyle, sniperOnly, sortField, sortAsc, rankingMap, signalsHistory, backtestMap]);
+  }, [searchQuery, selectedStyle, sniperOnly, sortField, sortAsc, rankingMap, signalsHistory, backtestMap, healthMap]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -228,14 +266,14 @@ export default function StrategyMatrixComponent({
                 🧭 Termómetro de Confluencia
               </span>
               <span style={{ fontSize: '0.72rem', background: 'rgba(59, 130, 246, 0.15)', color: '#93c5fd', padding: '0.15rem 0.5rem', borderRadius: '6px', fontWeight: 700 }}>
-                60 Modelos 24/7
+                {70 - healthCounts.DISABLED} Activos / 70
               </span>
             </div>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', marginBottom: '0.3rem' }}>
               {masterConsensusData?.bias || 'Calculando Confluencia...'}
             </h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-              {masterConsensusData ? `Votos: ${masterConsensusData.longVotes} Longs | ${masterConsensusData.shortVotes} Shorts | Probabilidad: ${masterConsensusData.avgPUp}% Alcista` : 'Sincronizando 60 algoritmos...'}
+              {masterConsensusData ? `Votos: ${masterConsensusData.longVotes} Longs | ${masterConsensusData.shortVotes} Shorts | Probabilidad: ${masterConsensusData.avgPUp}% Alcista` : 'Sincronizando 70 algoritmos...'}
             </p>
           </div>
 
@@ -352,8 +390,48 @@ export default function StrategyMatrixComponent({
             </div>
 
             <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-              Mostrando <b>{filteredCatalog.length}</b> de 60
+              Mostrando <b>{filteredCatalog.length}</b> de 70
             </span>
+          </div>
+
+          {/* PODA RÁPIDA EN 1 CLIC */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {onDisableAllLosing && (
+              <button
+                onClick={onDisableAllLosing}
+                disabled={healthCounts.LOSING === 0}
+                title="Silencia las estrategias históricamente perdedoras para que no voten ni emitan señales"
+                style={{
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '8px',
+                  border: `1px solid ${healthCounts.LOSING > 0 ? 'rgba(239, 68, 68, 0.45)' : 'rgba(255,255,255,0.08)'}`,
+                  background: healthCounts.LOSING > 0 ? 'rgba(239, 68, 68, 0.14)' : 'rgba(255,255,255,0.02)',
+                  color: healthCounts.LOSING > 0 ? '#fca5a5' : '#64748b',
+                  fontSize: '0.76rem',
+                  fontWeight: 800,
+                  cursor: healthCounts.LOSING > 0 ? 'pointer' : 'not-allowed'
+                }}
+              >
+                🔇 Silenciar 🔴 Perdedoras ({healthCounts.LOSING})
+              </button>
+            )}
+            {onEnableAllStrategies && healthCounts.DISABLED > 0 && (
+              <button
+                onClick={onEnableAllStrategies}
+                style={{
+                  padding: '0.45rem 0.8rem',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  color: '#93c5fd',
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🔄 Reactivar ({healthCounts.DISABLED})
+              </button>
+            )}
           </div>
 
           {/* TOGGLE MODO SNIPER (>70%) */}
@@ -413,19 +491,22 @@ export default function StrategyMatrixComponent({
           </div>
         </div>
 
-        {/* FILA 2: BOTONES DE FILTRO POR FAMILIA CUANTITATIVA */}
+        {/* FILA 2: SEMÁFORO DE SALUD + FILTRO POR FAMILIA CUANTITATIVA */}
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {[
-            { key: 'ALL', label: '🌐 Todas (60)' },
+            { key: 'ALL', label: '🌐 Todas (70)' },
+            { key: 'HEALTH_PROFITABLE', label: `🟢 Rentables (${healthCounts.PROFITABLE})` },
+            { key: 'HEALTH_TESTING', label: `🟡 En Prueba (${healthCounts.TESTING})` },
+            { key: 'HEALTH_LOSING', label: `🔴 Perdedoras (${healthCounts.LOSING})` },
+            { key: 'HEALTH_DISABLED', label: `🚫 Silenciadas (${healthCounts.DISABLED})` },
+            { key: 'EXPERT_ALPHA', label: '🧠 10 Nuevas Experto' },
+            { key: 'EXPERT', label: '👑 10 Propietarias' },
             { key: 'TREND', label: '🚀 Tendencia (10)' },
             { key: 'MEAN_REVERSION', label: '🌊 Reversión (10)' },
             { key: 'ORDER_FLOW', label: '📊 Order Flow (10)' },
             { key: 'SMC', label: '🏛️ Smart Money (10)' },
             { key: 'VOLATILITY', label: '🌪️ Volatilidad (10)' },
-            { key: 'EXPERT', label: '👑 10 Propietarias Experto' },
-            { key: 'ACTIVE', label: `🟢 En Curso (${activeCount})` },
-            { key: 'VERIFIED', label: '🏆 Verificadas Backtest (PF > 1.35)' },
-            { key: 'TOP', label: '⭐ Top Rentables' }
+            { key: 'ACTIVE', label: `⚡ En Curso (${activeCount})` }
           ].map(f => (
             <button
               key={f.key}
@@ -460,10 +541,10 @@ export default function StrategyMatrixComponent({
                 <th onClick={() => handleSort('id')} style={{ padding: '0.75rem 0.6rem', cursor: 'pointer' }}>
                   Estrategia {sortField === 'id' ? (sortAsc ? '▲' : '▼') : ''}
                 </th>
-                <th style={{ padding: '0.75rem 0.6rem' }}>Familia / Estilo</th>
-                <th style={{ padding: '0.75rem 0.6rem' }}>TF</th>
+                <th style={{ padding: '0.75rem 0.6rem' }}>Salud</th>
+                <th style={{ padding: '0.75rem 0.6rem' }}>TF / Estilo</th>
                 <th onClick={() => handleSort('winRate')} style={{ padding: '0.75rem 0.6rem', cursor: 'pointer' }}>
-                  Acierto (Vivo / Backtest) {sortField === 'winRate' ? (sortAsc ? '▲' : '▼') : ''}
+                  Acierto (Vivo vs Backtest) {sortField === 'winRate' ? (sortAsc ? '▲' : '▼') : ''}
                 </th>
                 <th onClick={() => handleSort('mfe')} style={{ padding: '0.75rem 0.6rem', cursor: 'pointer' }}>
                   Backtest PF {sortField === 'mfe' ? (sortAsc ? '▲' : '▼') : ''}
@@ -472,10 +553,10 @@ export default function StrategyMatrixComponent({
                   PnL Total {sortField === 'pnl' ? (sortAsc ? '▲' : '▼') : ''}
                 </th>
                 <th onClick={() => handleSort('signals')} style={{ padding: '0.75rem 0.6rem', cursor: 'pointer' }}>
-                  Operaciones (TP/SL) {sortField === 'signals' ? (sortAsc ? '▲' : '▼') : ''}
+                  Ops (TP/SL) {sortField === 'signals' ? (sortAsc ? '▲' : '▼') : ''}
                 </th>
-                <th style={{ padding: '0.75rem 0.6rem' }}>Estado Actual</th>
-                <th style={{ padding: '0.75rem 0.6rem', textAlign: 'right' }}>Auditoría</th>
+                <th style={{ padding: '0.75rem 0.6rem' }}>Estado</th>
+                <th style={{ padding: '0.75rem 0.6rem', textAlign: 'right' }}>Control</th>
               </tr>
             </thead>
             <tbody>
@@ -491,12 +572,11 @@ export default function StrategyMatrixComponent({
                 const bt = backtestMap?.[strat.key];
                 const analysis = allAnalysisMap[strat.key];
                 const activeSignal = signalsHistory.find(s => s.strategy === strat.key && s.status === 'PENDING');
+                const health = healthMap.get(strat.key);
+                const isDisabled = health?.status === 'DISABLED';
 
                 const hasLiveResolved = (stats.tpCount + stats.slCount) > 0 && stats.winRate !== null;
                 const displayWr = hasLiveResolved ? stats.winRate : (bt?.winRate ?? null);
-                const winRateDisplay = displayWr !== null
-                  ? `${displayWr}% ${hasLiveResolved ? '' : '(BT)'}`
-                  : 'En auditoría';
                 const winRateColor = displayWr === null ? 'var(--color-text-muted)' : displayWr >= 65 ? '#10b981' : displayWr >= 50 ? '#3b82f6' : '#ef4444';
 
                 return (
@@ -506,47 +586,61 @@ export default function StrategyMatrixComponent({
                     style={{
                       borderBottom: '1px solid rgba(255,255,255,0.03)',
                       cursor: 'pointer',
-                      transition: 'background 0.2s ease',
+                      opacity: isDisabled ? 0.5 : 1,
+                      transition: 'background 0.2s ease'
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700, color: '#fff' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ color: '#93c5fd', fontSize: '0.75rem' }}>{strat.key.replace('Estrategia ', 'E')}</span>
+                        <span style={{ color: strat.style === 'EXPERT_ALPHA' ? '#c084fc' : '#93c5fd', fontSize: '0.75rem' }}>{strat.key.replace('Estrategia ', 'E')}</span>
                         <span>{strat.title}</span>
                       </div>
                     </td>
 
                     <td style={{ padding: '0.7rem 0.6rem' }}>
                       <span style={{
-                        fontSize: '0.7rem',
-                        padding: '0.15rem 0.45rem',
-                        borderRadius: '4px',
-                        background: strat.style === 'EXPERT' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(255,255,255,0.05)',
-                        color: strat.style === 'EXPERT' ? '#fde047' : '#cbd5e1',
-                        fontWeight: 600
+                        fontSize: '0.69rem',
+                        padding: '0.18rem 0.48rem',
+                        borderRadius: '99px',
+                        background: health?.bg || 'rgba(255,255,255,0.06)',
+                        color: health?.color || '#cbd5e1',
+                        fontWeight: 800,
+                        whiteSpace: 'nowrap'
                       }}>
-                        {strat.styleLabel}
+                        {health?.badge || '🟡 En Prueba'}
                       </span>
                     </td>
 
-                    <td style={{ padding: '0.7rem 0.6rem', color: '#94a3b8', fontSize: '0.74rem' }}>
-                      {strat.tf}
-                    </td>
-
-                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 800, color: winRateColor }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span>{winRateDisplay}</span>
-                        {displayWr !== null && (
-                          <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '99px', overflow: 'hidden' }}>
-                            <div style={{ width: `${Math.min(100, displayWr)}%`, height: '100%', background: winRateColor }} />
-                          </div>
-                        )}
+                    <td style={{ padding: '0.7rem 0.6rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '0.71rem', fontWeight: 700 }}>{strat.tf}</span>
+                        <span style={{
+                          fontSize: '0.68rem',
+                          padding: '0.12rem 0.4rem',
+                          borderRadius: '4px',
+                          background: strat.style === 'EXPERT_ALPHA' ? 'rgba(168, 85, 247, 0.16)' : strat.style === 'EXPERT' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(255,255,255,0.05)',
+                          color: strat.style === 'EXPERT_ALPHA' ? '#d8b4fe' : strat.style === 'EXPERT' ? '#fde047' : '#cbd5e1',
+                          fontWeight: 600
+                        }}>
+                          {strat.styleLabel}
+                        </span>
                       </div>
                     </td>
 
-                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700, color: bt?.profitFactor >= 1.35 ? '#10b981' : bt?.profitFactor >= 1.0 ? '#93c5fd' : '#94a3b8' }}>
+                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', fontSize: '0.75rem' }}>
+                        <span style={{ color: hasLiveResolved ? winRateColor : '#64748b' }}>
+                          Vivo: <b>{hasLiveResolved ? `${stats.winRate}%` : '--'}</b>
+                        </span>
+                        <span style={{ color: bt?.winRate !== null && bt?.winRate !== undefined ? '#93c5fd' : '#64748b', fontSize: '0.7rem' }}>
+                          Hist: <b>{bt && bt.winRate !== null ? `${bt.winRate}%` : '--'}</b>
+                        </span>
+                      </div>
+                    </td>
+
+                    <td style={{ padding: '0.7rem 0.6rem', fontWeight: 700, color: bt?.profitFactor >= 1.2 ? '#10b981' : bt?.profitFactor >= 1.0 ? '#93c5fd' : '#f87171' }}>
                       {bt && bt.totalTrades >= 2 && bt.profitFactor !== null
                         ? `PF ${bt.profitFactor} (${bt.totalTrades}t)`
                         : (stats.avgMfe !== null && stats.avgMfe > 0 ? `+${stats.avgMfe}% MFE` : '--')}
@@ -567,7 +661,9 @@ export default function StrategyMatrixComponent({
                     </td>
 
                     <td style={{ padding: '0.7rem 0.6rem' }}>
-                      {activeSignal ? (
+                      {isDisabled ? (
+                        <span style={{ color: '#64748b', fontSize: '0.72rem' }}>Silenciada</span>
+                      ) : activeSignal ? (
                         <span style={{
                           padding: '0.2rem 0.5rem',
                           borderRadius: '6px',
@@ -584,25 +680,48 @@ export default function StrategyMatrixComponent({
                       )}
                     </td>
 
-                    <td style={{ padding: '0.7rem 0.6rem', textAlign: 'right' }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setInspectingStrategy(strat);
-                        }}
-                        style={{
-                          background: 'rgba(59, 130, 246, 0.1)',
-                          border: '1px solid rgba(59, 130, 246, 0.25)',
-                          color: '#60a5fa',
-                          padding: '0.25rem 0.55rem',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '0.72rem',
-                          fontWeight: 700
-                        }}
-                      >
-                        🔍 Ver Ficha
-                      </button>
+                    <td style={{ padding: '0.7rem 0.6rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                        {onToggleDisableStrategy && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleDisableStrategy(strat.key);
+                            }}
+                            title={isDisabled ? 'Reactivar estrategia' : 'Silenciar estrategia'}
+                            style={{
+                              background: isDisabled ? 'rgba(16, 185, 129, 0.14)' : 'rgba(239, 68, 68, 0.12)',
+                              border: `1px solid ${isDisabled ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.28)'}`,
+                              color: isDisabled ? '#6ee7b7' : '#fca5a5',
+                              padding: '0.25rem 0.48rem',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '0.71rem',
+                              fontWeight: 700
+                            }}
+                          >
+                            {isDisabled ? '🔊 Activar' : '🔇 Silenciar'}
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInspectingStrategy(strat);
+                          }}
+                          style={{
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.25)',
+                            color: '#60a5fa',
+                            padding: '0.25rem 0.48rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.71rem',
+                            fontWeight: 700
+                          }}
+                        >
+                          🔍
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -615,8 +734,11 @@ export default function StrategyMatrixComponent({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
           {filteredCatalog.map(strat => {
             const stats = rankingMap.get(strat.key) || { winRate: null, totalPnl: 0, tpCount: 0, slCount: 0, totalSignals: 0 };
+            const bt = backtestMap?.[strat.key];
             const activeSignal = signalsHistory.find(s => s.strategy === strat.key && s.status === 'PENDING');
-            const winRateDisplay = stats.winRate !== null ? `${stats.winRate}%` : 'En auditoría';
+            const health = healthMap.get(strat.key);
+            const isDisabled = health?.status === 'DISABLED';
+            const winRateDisplay = stats.winRate !== null ? `${stats.winRate}%` : (bt?.winRate !== null && bt?.winRate !== undefined ? `${bt.winRate}% (BT)` : 'En prueba');
 
             return (
               <div
@@ -630,6 +752,7 @@ export default function StrategyMatrixComponent({
                   justifyContent: 'space-between',
                   gap: '0.8rem',
                   cursor: 'pointer',
+                  opacity: isDisabled ? 0.52 : 1,
                   border: activeSignal ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.05)',
                   transition: 'transform 0.2s ease, border 0.2s ease'
                 }}
@@ -637,11 +760,16 @@ export default function StrategyMatrixComponent({
                 onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', gap: '0.4rem', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.72rem', color: '#93c5fd', fontWeight: 800 }}>{strat.key}</span>
-                    <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1' }}>
-                      {strat.tf} • {strat.styleLabel}
-                    </span>
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.67rem', padding: '0.12rem 0.42rem', borderRadius: '99px', background: health?.bg, color: health?.color, fontWeight: 800 }}>
+                        {health?.badge}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1' }}>
+                        {strat.tf} • {strat.styleLabel}
+                      </span>
+                    </div>
                   </div>
                   <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '0.4rem' }}>{strat.title}</h4>
                   <p style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)', lineHeight: '1.3' }}>{strat.desc}</p>
@@ -650,18 +778,34 @@ export default function StrategyMatrixComponent({
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block' }}>Win Rate</span>
-                    <b style={{ fontSize: '0.9rem', color: stats.winRate >= 65 ? '#10b981' : '#fff' }}>{winRateDisplay}</b>
+                    <b style={{ fontSize: '0.9rem', color: (stats.winRate ?? bt?.winRate ?? 0) >= 60 ? '#10b981' : '#fff' }}>{winRateDisplay}</b>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block' }}>PnL Total</span>
-                    <b style={{ fontSize: '0.9rem', color: (stats.totalPnl || 0) >= 0 ? '#10b981' : '#ef4444' }}>
-                      {formatPnl(stats.totalPnl)}
+                    <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block' }}>PF / PnL</span>
+                    <b style={{ fontSize: '0.88rem', color: ((bt?.totalPnl ?? stats.totalPnl) || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                      {bt?.profitFactor ? `PF ${bt.profitFactor}` : formatPnl(stats.totalPnl)}
                     </b>
                   </div>
-                  <div>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block' }}>Trades</span>
-                    <b style={{ fontSize: '0.9rem', color: '#fff' }}>{stats.totalSignals}</b>
-                  </div>
+                  {onToggleDisableStrategy && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleDisableStrategy(strat.key);
+                      }}
+                      style={{
+                        background: isDisabled ? 'rgba(16, 185, 129, 0.14)' : 'rgba(239, 68, 68, 0.12)',
+                        border: `1px solid ${isDisabled ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.28)'}`,
+                        color: isDisabled ? '#6ee7b7' : '#fca5a5',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem',
+                        fontWeight: 700
+                      }}
+                    >
+                      {isDisabled ? '🔊 Activar' : '🔇 Silenciar'}
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -702,18 +846,38 @@ export default function StrategyMatrixComponent({
           }}>
             
             {/* Header Modal */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.8rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.8rem', gap: '0.75rem' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', color: '#60a5fa', fontWeight: 800 }}>{inspectingStrategy.key} • {inspectingStrategy.styleLabel}</span>
                 <h3 style={{ fontSize: '1.3rem', color: '#fff', fontWeight: 800, marginTop: '0.2rem' }}>{inspectingStrategy.title}</h3>
                 <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>{inspectingStrategy.desc}</p>
               </div>
-              <button
-                onClick={() => setInspectingStrategy(null)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.3rem', cursor: 'pointer', padding: '0.2rem 0.5rem' }}
-              >
-                ✖
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {onToggleDisableStrategy && (
+                  <button
+                    onClick={() => onToggleDisableStrategy(inspectingStrategy.key)}
+                    style={{
+                      background: healthMap.get(inspectingStrategy.key)?.status === 'DISABLED' ? 'rgba(16, 185, 129, 0.16)' : 'rgba(239, 68, 68, 0.16)',
+                      border: `1px solid ${healthMap.get(inspectingStrategy.key)?.status === 'DISABLED' ? '#10b981' : '#ef4444'}`,
+                      color: healthMap.get(inspectingStrategy.key)?.status === 'DISABLED' ? '#6ee7b7' : '#fca5a5',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {healthMap.get(inspectingStrategy.key)?.status === 'DISABLED' ? '🔊 Reactivar' : '🔇 Silenciar'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setInspectingStrategy(null)}
+                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.3rem', cursor: 'pointer', padding: '0.2rem 0.5rem' }}
+                >
+                  ✖
+                </button>
+              </div>
             </div>
 
             {/* Ficha de Rendimiento */}
