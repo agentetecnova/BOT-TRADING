@@ -3,6 +3,7 @@ import technicalAnalysisService from './services/TechnicalAnalysisService';
 import marketDataService from './services/MarketDataService';
 import backtestEngine from './services/BacktestEngine';
 import predictiveOracleService from './services/PredictiveOracleService';
+import aiSnapshotService from './services/AiSnapshotService';
 import BTCMasterSheet from './components/BTCMasterSheet';
 import BTCDivergenceQuantSheet from './components/BTCDivergenceQuantSheet';
 import SignalHistoryService from './services/SignalHistoryService';
@@ -98,6 +99,7 @@ export default function App() {
   const [magneticZones, setMagneticZones] = useState(null);
   const [backtestMap, setBacktestMap] = useState({});
   const [oraclePrediction, setOraclePrediction] = useState(null);
+  const [aiSnapshot, setAiSnapshot] = useState(null);
 
   // Signals History state
   const [signalsHistory, setSignalsHistory] = useState(() => SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup'));
@@ -597,6 +599,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Poll hourly AI + On-Chain snapshot (GitHub ai-snapshot branch, zero Vercel rebuilds)
+  useEffect(() => {
+    let active = true;
+    const loadSnapshot = async () => {
+      const snap = await aiSnapshotService.fetchLatestSnapshot();
+      if (active && snap) {
+        setAiSnapshot(snap);
+      }
+    };
+    loadSnapshot();
+    const snapInterval = setInterval(loadSnapshot, 300000);
+    return () => {
+      active = false;
+      clearInterval(snapInterval);
+    };
+  }, []);
+
   // Las señales se evalúan de forma pura hasta tocar su Take Profit (TP) o Stop Loss (SL) para registrar Win Rate real.
 
   // Add new trading signal to history
@@ -933,6 +952,7 @@ export default function App() {
           <DecisionOraclePanel
             oracleData={oraclePrediction}
             marketRegime={marketRegime}
+            aiSnapshot={aiSnapshot}
             onSelectStrategy={(stratKey) => {
               setSelectedStratFilter(stratKey);
               setActiveTab('history');

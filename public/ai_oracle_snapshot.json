@@ -1,0 +1,387 @@
+{
+  "schemaVersion": "1.0",
+  "symbol": "BTCUSDT",
+  "generatedAtUtc": "2026-11-27T13:45:18.141923+00:00",
+  "modelTrainedAtUtc": "2026-11-27T13:44:54.101093+00:00",
+  "btcPrice": 61636.01,
+  "onchainContext": {
+    "asOfDate": "2026-11-27",
+    "activeAddresses": 469705.0,
+    "txTransferUsd": 5440940605.710855,
+    "stablecoinMcapUsd": 243035996909.3936,
+    "stablecoin7dChgPct": -0.26,
+    "fearGreed": 12.0,
+    "mempool": {
+      "fastest_fee_sat": 4.0,
+      "half_hour_fee_sat": 3.0,
+      "hour_fee_sat": 1.0,
+      "mempool_tx_count": 76003.0,
+      "mempool_vsize_mb": 32.54
+    },
+    "futures": {
+      "open_interest_btc": 97831.382,
+      "top_ls_ratio": 2.6765,
+      "global_ls_ratio": 2.3546
+    }
+  },
+  "horizons": {
+    "intraday": {
+      "horizon": "intraday",
+      "labelEs": "Rápido (Intraday 1h–12h)",
+      "timeframe": "1h",
+      "lastCandleCloseUtc": "2026-11-27T12:59:59.999000+00:00",
+      "price": 61636.01,
+      "verdict": "ESPERAR",
+      "verdictEs": "ESPERAR CONFIRMACIÓN (Sin ventaja estadística neta)",
+      "probLongPct": 33.4,
+      "probShortPct": 39.3,
+      "evLongPct": -0.185,
+      "evShortPct": -0.05,
+      "plan": null,
+      "walkForward": {
+        "long": {
+          "trades": 125,
+          "winRatePct": 39.2,
+          "expectancyPct": -0.054,
+          "profitFactor": 0.91,
+          "totalReturnPct": -7.79,
+          "maxDrawdownPct": 26.09,
+          "edgeValidated": false,
+          "oosAuc": 0.489,
+          "oosBrier": 0.2277,
+          "oosSamples": 7745
+        },
+        "short": {
+          "trades": 111,
+          "winRatePct": 44.1,
+          "expectancyPct": 0.123,
+          "profitFactor": 1.31,
+          "totalReturnPct": 13.86,
+          "maxDrawdownPct": 13.19,
+          "edgeValidated": true,
+          "oosAuc": 0.487,
+          "oosBrier": 0.2375,
+          "oosSamples": 7745
+        }
+      },
+      "topDrivers": [
+        {
+          "feature": "onchain_nvt_proxy",
+          "label": "Valoración de red vs flujo on-chain (NVT proxy)",
+          "category": "On-Chain / Liquidez",
+          "zScore": -2.29,
+          "state": "MUY BAJO",
+          "rawValue": 4.75165
+        },
+        {
+          "feature": "htf_1d_ret_30d",
+          "label": "Rendimiento BTC últimos 30 días",
+          "category": "Técnico / Flujo",
+          "zScore": -2.12,
+          "state": "MUY BAJO",
+          "rawValue": -0.28942
+        },
+        {
+          "feature": "wick_lower_pct",
+          "label": "Mecha inferior (rechazo/absorción en mínimos)",
+          "category": "Técnico / Flujo",
+          "zScore": 2.09,
+          "state": "MUY ALTO",
+          "rawValue": 0.73094
+        },
+        {
+          "feature": "onchain_stablecoin_chg_30d",
+          "label": "Liquidez de stablecoins en mercado (30d)",
+          "category": "On-Chain / Liquidez",
+          "zScore": -2.07,
+          "state": "MUY BAJO",
+          "rawValue": -0.04083
+        }
+      ],
+      "historicalAnalogs": {
+        "count": 10,
+        "analogs": [
+          {
+            "date": "2026-06-11",
+            "price": 62927.49,
+            "similarityPct": 84.4,
+            "fwdReturnPct": 0.94,
+            "longWon": true,
+            "shortWon": false,
+            "fearGreed": 9.0
+          },
+          {
+            "date": "2026-06-08",
+            "price": 63758.0,
+            "similarityPct": 77.4,
+            "fwdReturnPct": -1.56,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 12.0
+          },
+          {
+            "date": "2026-02-14",
+            "price": 69671.86,
+            "similarityPct": 74.9,
+            "fwdReturnPct": 0.41,
+            "longWon": true,
+            "shortWon": false,
+            "fearGreed": 9.0
+          },
+          {
+            "date": "2025-11-27",
+            "price": 91613.51,
+            "similarityPct": 73.8,
+            "fwdReturnPct": -0.32,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 15.0
+          },
+          {
+            "date": "2026-06-12",
+            "price": 63702.01,
+            "similarityPct": 73.1,
+            "fwdReturnPct": -0.31,
+            "longWon": false,
+            "shortWon": false,
+            "fearGreed": 12.0
+          },
+          {
+            "date": "2026-11-19",
+            "price": 63878.21,
+            "similarityPct": 72.8,
+            "fwdReturnPct": -2.71,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 11.0
+          },
+          {
+            "date": "2026-02-15",
+            "price": 70427.02,
+            "similarityPct": 71.3,
+            "fwdReturnPct": -2.03,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 9.0
+          },
+          {
+            "date": "2026-02-08",
+            "price": 71188.99,
+            "similarityPct": 71.1,
+            "fwdReturnPct": 0.17,
+            "longWon": false,
+            "shortWon": false,
+            "fearGreed": 6.0
+          },
+          {
+            "date": "2026-02-20",
+            "price": 67879.99,
+            "similarityPct": 68.5,
+            "fwdReturnPct": -0.19,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 9.0
+          },
+          {
+            "date": "2025-11-09",
+            "price": 103845.04,
+            "similarityPct": 66.1,
+            "fwdReturnPct": 2.22,
+            "longWon": true,
+            "shortWon": false,
+            "fearGreed": 20.0
+          }
+        ],
+        "summary": {
+          "count": 10,
+          "avgReturnPct": -0.34,
+          "medianReturnPct": -0.25,
+          "positiveRatePct": 40.0,
+          "longTargetHitPct": 30.0,
+          "shortTargetHitPct": 50.0,
+          "bestReturnPct": 2.22,
+          "worstReturnPct": -2.71
+        }
+      }
+    },
+    "swing": {
+      "horizon": "swing",
+      "labelEs": "Tendencia (Swing 1–5+ días)",
+      "timeframe": "4h",
+      "lastCandleCloseUtc": "2026-11-27T11:59:59.999000+00:00",
+      "price": 61662.57,
+      "verdict": "ESPERAR",
+      "verdictEs": "ESPERAR CONFIRMACIÓN (Sin ventaja estadística neta)",
+      "probLongPct": 37.3,
+      "probShortPct": 38.4,
+      "evLongPct": 0.06,
+      "evShortPct": 0.135,
+      "plan": null,
+      "walkForward": {
+        "long": {
+          "trades": 167,
+          "winRatePct": 38.3,
+          "expectancyPct": 0.036,
+          "profitFactor": 1.03,
+          "totalReturnPct": -1.9,
+          "maxDrawdownPct": 32.63,
+          "edgeValidated": false,
+          "oosAuc": 0.49,
+          "oosBrier": 0.2404,
+          "oosSamples": 6418
+        },
+        "short": {
+          "trades": 46,
+          "winRatePct": 41.3,
+          "expectancyPct": 0.153,
+          "profitFactor": 1.13,
+          "totalReturnPct": 5.56,
+          "maxDrawdownPct": 15.18,
+          "edgeValidated": true,
+          "oosAuc": 0.513,
+          "oosBrier": 0.2344,
+          "oosSamples": 6418
+        }
+      },
+      "topDrivers": [
+        {
+          "feature": "onchain_stablecoin_chg_30d",
+          "label": "Liquidez de stablecoins en mercado (30d)",
+          "category": "On-Chain / Liquidez",
+          "zScore": -2.17,
+          "state": "MUY BAJO",
+          "rawValue": -0.04083
+        },
+        {
+          "feature": "wick_upper_pct",
+          "label": "Mecha superior (rechazo en máximos)",
+          "category": "Técnico / Flujo",
+          "zScore": 2.07,
+          "state": "MUY ALTO",
+          "rawValue": 0.69224
+        },
+        {
+          "feature": "htf_1d_ret_30d",
+          "label": "Rendimiento BTC últimos 30 días",
+          "category": "Técnico / Flujo",
+          "zScore": -2.01,
+          "state": "MUY BAJO",
+          "rawValue": -0.28942
+        },
+        {
+          "feature": "onchain_nvt_proxy",
+          "label": "Valoración de red vs flujo on-chain (NVT proxy)",
+          "category": "On-Chain / Liquidez",
+          "zScore": -1.76,
+          "state": "MUY BAJO",
+          "rawValue": 4.75165
+        }
+      ],
+      "historicalAnalogs": {
+        "count": 10,
+        "analogs": [
+          {
+            "date": "2026-06-12",
+            "price": 63593.02,
+            "similarityPct": 76.9,
+            "fwdReturnPct": 3.39,
+            "longWon": true,
+            "shortWon": false,
+            "fearGreed": 12.0
+          },
+          {
+            "date": "2026-06-08",
+            "price": 63479.61,
+            "similarityPct": 72.6,
+            "fwdReturnPct": 0.77,
+            "longWon": false,
+            "shortWon": false,
+            "fearGreed": 12.0
+          },
+          {
+            "date": "2026-11-19",
+            "price": 63947.59,
+            "similarityPct": 71.6,
+            "fwdReturnPct": -5.51,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 11.0
+          },
+          {
+            "date": "2026-06-11",
+            "price": 62749.44,
+            "similarityPct": 70.9,
+            "fwdReturnPct": 4.96,
+            "longWon": true,
+            "shortWon": false,
+            "fearGreed": 9.0
+          },
+          {
+            "date": "2026-07-02",
+            "price": 61612.93,
+            "similarityPct": 70.5,
+            "fwdReturnPct": 3.76,
+            "longWon": true,
+            "shortWon": false,
+            "fearGreed": 11.0
+          },
+          {
+            "date": "2022-05-23",
+            "price": 30397.11,
+            "similarityPct": 67.7,
+            "fwdReturnPct": -5.16,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 14.0
+          },
+          {
+            "date": "2026-02-20",
+            "price": 67318.41,
+            "similarityPct": 67.3,
+            "fwdReturnPct": -2.81,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 9.0
+          },
+          {
+            "date": "2022-07-05",
+            "price": 20215.69,
+            "similarityPct": 67.0,
+            "fwdReturnPct": 5.55,
+            "longWon": false,
+            "shortWon": false,
+            "fearGreed": 14.0
+          },
+          {
+            "date": "2022-11-23",
+            "price": 16585.77,
+            "similarityPct": 65.7,
+            "fwdReturnPct": -2.25,
+            "longWon": false,
+            "shortWon": true,
+            "fearGreed": 22.0
+          },
+          {
+            "date": "2022-07-06",
+            "price": 20103.43,
+            "similarityPct": 64.7,
+            "fwdReturnPct": 1.84,
+            "longWon": true,
+            "shortWon": false,
+            "fearGreed": 19.0
+          }
+        ],
+        "summary": {
+          "count": 10,
+          "avgReturnPct": 0.45,
+          "medianReturnPct": 1.31,
+          "positiveRatePct": 60.0,
+          "longTargetHitPct": 40.0,
+          "shortTargetHitPct": 40.0,
+          "bestReturnPct": 5.55,
+          "worstReturnPct": -5.51
+        }
+      }
+    }
+  }
+}

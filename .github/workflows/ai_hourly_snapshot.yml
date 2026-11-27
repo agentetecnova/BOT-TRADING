@@ -1,0 +1,44 @@
+name: AI Hourly BTCUSDT Snapshot
+
+on:
+  schedule:
+    # Runs every 1 hour automatically (zero Vercel builds triggered)
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-ai-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (main)
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "ai_engine/requirements.txt"
+
+      - name: Install AI Engine dependencies
+        run: pip install -r ai_engine/requirements.txt
+
+      - name: Generate fresh BTCUSDT AI + On-Chain snapshot
+        run: |
+          mkdir -p /tmp/ai_out
+          python -m ai_engine.predict --output /tmp/ai_out/ai_oracle_snapshot.json
+
+      - name: Publish lightweight snapshot to isolated ai-snapshot branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan ai-snapshot-temp
+          git rm -rf --cached . > /dev/null 2>&1 || true
+          find . -maxdepth 1 ! -name '.' ! -name '.git' -exec rm -rf {} +
+          cp /tmp/ai_out/ai_oracle_snapshot.json ai_oracle_snapshot.json
+          git add ai_oracle_snapshot.json
+          git commit -m "chore(ai): hourly BTCUSDT snapshot [skip ci]"
+          git push --force origin ai-snapshot-temp:ai-snapshot

@@ -1,8 +1,10 @@
 import React from 'react';
+import AiHorizonSection from './AiHorizonSection';
 
 export default function DecisionOraclePanel({
   oracleData,
   marketRegime,
+  aiSnapshot,
   onSelectStrategy
 }) {
   const fmt = (n) => {
@@ -287,6 +289,8 @@ export default function DecisionOraclePanel({
           </div>
         )}
       </div>
+
+      <AiHorizonSection aiSnapshot={aiSnapshot} />
 
     </section>
   );

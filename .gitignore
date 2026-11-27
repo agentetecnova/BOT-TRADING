@@ -24,3 +24,12 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# AI Engine heavy local datasets (never pushed to GitHub)
+ai_engine/storage/
+*.duckdb
+*.duckdb.wal
+*.parquet
+__pycache__/
+*.pyc
+.pytest_cache/
