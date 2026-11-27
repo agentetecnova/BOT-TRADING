@@ -12,6 +12,7 @@ COINGECKO_CHART_URL = "https://api.coingecko.com/api/v3/coins/{coin_id}/market_c
 FEAR_GREED_URL = "https://api.alternative.me/fng/?limit=0&format=json"
 MEMPOOL_FEES_URL = "https://mempool.space/api/v1/fees/recommended"
 MEMPOOL_STATE_URL = "https://mempool.space/api/mempool"
+YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 
 
 def _session() -> requests.Session:
@@ -213,18 +214,56 @@ def fetch_mempool_live() -> Dict[str, Optional[float]]:
     return out
 
 
+def fetch_macro_daily(range_str: str = "5y") -> pd.DataFrame:
+    """Fetch free daily Nasdaq (^IXIC) and US Dollar Index (DX-Y.NYB) closes from Yahoo Finance."""
+    sess = _session()
+    series_map = [("%5EIXIC", "nasdaq_close"), ("DX-Y.NYB", "dxy_close")]
+    frames: List[pd.DataFrame] = []
+    for ticker, col_name in series_map:
+        try:
+            r = sess.get(
+                YAHOO_CHART_URL.format(symbol=ticker),
+                params={"range": range_str, "interval": "1d"},
+                timeout=12,
+            )
+            if r.status_code != 200:
+                continue
+            res = (r.json().get("chart", {}).get("result") or [None])[0]
+            if not res:
+                continue
+            ts_list = res.get("timestamp", [])
+            closes = res.get("indicators", {}).get("quote", [{}])[0].get("close", [])
+            rows = []
+            for ts_sec, c_val in zip(ts_list, closes):
+                if ts_sec and c_val is not None:
+                    d_str = datetime.fromtimestamp(int(ts_sec), tz=timezone.utc).strftime("%Y-%m-%d")
+                    rows.append({"date": d_str, col_name: float(c_val)})
+            if rows:
+                frames.append(pd.DataFrame(rows).drop_duplicates(subset=["date"], keep="last"))
+        except Exception:
+            continue
+
+    if not frames:
+        return pd.DataFrame()
+    merged = frames[0]
+    for nxt in frames[1:]:
+        merged = pd.merge(merged, nxt, on="date", how="outer")
+    return merged.sort_values("date").reset_index(drop=True)
+
+
 def fetch_combined_onchain_daily(start_date: str = "2020-01-01", timespan: str = "5years") -> pd.DataFrame:
     """
     Merge Blockchain.com (5y BTC network/USD tx vol), CoinMetrics (daily verification),
-    Stablecoins liquidity (DefiLlama / CoinGecko), and Fear & Greed by UTC date.
+    Stablecoins liquidity (DefiLlama / CoinGecko), Fear & Greed, and Macro (Nasdaq + DXY).
 
     Adds strict `available_from_ms` = (date + 1 day at 00:00 UTC) so daily on-chain
-    values never leak into same-day intraday bars (anti-look-ahead guarantee).
+    and macro values never leak into same-day intraday bars (anti-look-ahead guarantee).
     """
     bc = fetch_blockchain_info_btc(timespan=timespan)
     cm = fetch_coinmetrics_btc(start_date=start_date)
     stables = fetch_stablecoins_liquidity()
     fng = fetch_fear_greed_history()
+    macro = fetch_macro_daily(range_str="5y" if timespan == "5years" else "1y")
 
     frames = []
     if not bc.empty:
@@ -240,6 +279,8 @@ def fetch_combined_onchain_daily(start_date: str = "2020-01-01", timespan: str =
         frames.append(stables)
     if not fng.empty:
         frames.append(fng)
+    if not macro.empty:
+        frames.append(macro)
 
     if not frames:
         return pd.DataFrame()

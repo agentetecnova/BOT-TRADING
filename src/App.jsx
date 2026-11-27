@@ -107,6 +107,9 @@ export default function App() {
   const [oraclePrediction, setOraclePrediction] = useState(null);
   const [aiSnapshot, setAiSnapshot] = useState(null);
   const [disabledStrategies, setDisabledStrategies] = useState(() => loadDisabledStrategies());
+  const [viewLayout, setViewLayout] = useState(() => {
+    try { return localStorage.getItem('btc_layout_mode_v1') || 'simple'; } catch { return 'simple'; }
+  });
 
   // Signals History state
   const [signalsHistory, setSignalsHistory] = useState(() => SignalHistoryService.loadFromLocalStorage('btc_signals_history_backup'));
@@ -904,7 +907,7 @@ export default function App() {
               gap: '0.5rem'
             }}
           >
-            🛸 HOJA 1: Motor Cuantitativo (60 Estrategias)
+            🛸 HOJA 1: Motor Cuantitativo (70 Estrategias)
           </button>
           <button
             onClick={() => setSelectedSheet('sheet2')}
@@ -967,11 +970,49 @@ export default function App() {
           <header className="glass-panel" style={{ padding: '1.5rem 2rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
             <div>
               <h1 style={{ fontSize: '1.8rem', background: 'linear-gradient(to right, #ffffff, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                🛸 Antigravity BTC Quant Terminal (60-in-1)
+                🛸 Antigravity BTC Quant Terminal (70-in-1)
               </h1>
               <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
                 Terminal predictiva especializada y motor cuantitativo 24/7 para Bitcoin.
               </p>
+              <div style={{ display: 'inline-flex', gap: '0.4rem', marginTop: '0.65rem', background: 'rgba(0,0,0,0.28)', padding: '0.25rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <button
+                  onClick={() => {
+                    setViewLayout('simple');
+                    try { localStorage.setItem('btc_layout_mode_v1', 'simple'); } catch {}
+                  }}
+                  style={{
+                    padding: '0.38rem 0.8rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.76rem',
+                    fontWeight: 800,
+                    background: viewLayout === 'simple' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(59, 130, 246, 0.25) 100%)' : 'transparent',
+                    color: viewLayout === 'simple' ? '#fff' : '#94a3b8'
+                  }}
+                >
+                  ✨ Vista Simple (Qué hacer y cuánto poner)
+                </button>
+                <button
+                  onClick={() => {
+                    setViewLayout('full');
+                    try { localStorage.setItem('btc_layout_mode_v1', 'full'); } catch {}
+                  }}
+                  style={{
+                    padding: '0.38rem 0.8rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.76rem',
+                    fontWeight: 800,
+                    background: viewLayout === 'full' ? 'rgba(59, 130, 246, 0.28)' : 'transparent',
+                    color: viewLayout === 'full' ? '#fff' : '#94a3b8'
+                  }}
+                >
+                  🔬 Vista Completa (70 Estrategias y Auditoría)
+                </button>
+              </div>
             </div>
 
             {/* Live Price & Status Widget */}
@@ -1020,9 +1061,34 @@ export default function App() {
             onSelectStrategy={(stratKey) => {
               setSelectedStratFilter(stratKey);
               setActiveTab('history');
+              setViewLayout('full');
+              try { localStorage.setItem('btc_layout_mode_v1', 'full'); } catch {}
             }}
           />
 
+          {viewLayout === 'simple' ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '0.25rem 0' }}>
+              <button
+                onClick={() => {
+                  setViewLayout('full');
+                  try { localStorage.setItem('btc_layout_mode_v1', 'full'); } catch {}
+                }}
+                style={{
+                  padding: '0.7rem 1.4rem',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  color: '#93c5fd',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                🔬 Ver las 70 Estrategias, Señales en Vivo y Auditoría Completa ({signalsHistory.filter(s => s.status === 'PENDING').length} activas) →
+              </button>
+            </div>
+          ) : (
+            <>
           {/* TAB SYSTEM NAV SELECTOR */}
           <div className="tab-switcher" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
             <button 
@@ -1355,6 +1421,8 @@ export default function App() {
               </div>
             </section>
           ) : null}
+            </>
+          )}
 
           <footer style={{ marginTop: 'auto', padding: '1.5rem 0 0', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
             <div>Antigravity BTC Quant Terminal v2.0.0</div>

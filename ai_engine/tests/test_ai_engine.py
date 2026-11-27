@@ -46,13 +46,22 @@ def test_anti_lookahead_features_unchanged_when_future_mutated():
             "market_cap_usd": np.full(len(dates), 8e11),
             "stablecoin_mcap_usd": np.linspace(130e9, 145e9, len(dates)),
             "fear_greed": np.linspace(40, 70, len(dates)),
+            "nasdaq_close": np.linspace(16000, 18000, len(dates)),
+            "dxy_close": np.linspace(102, 105, len(dates)),
+        }
+    )
+    deriv = pd.DataFrame(
+        {
+            "timestamp_ms": base["timestamp_ms"],
+            "oi_usd": np.linspace(2e9, 3e9, len(base)),
+            "ls_ratio": np.linspace(1.2, 2.0, len(base)),
         }
     )
 
     cut = 50
     cut_close_ms = int(base.loc[cut, "close_time_ms"])
 
-    feats_orig = build_feature_matrix(base, daily_klines=daily, onchain_daily=onchain)
+    feats_orig = build_feature_matrix(base, daily_klines=daily, onchain_daily=onchain, derivatives_df=deriv)
 
     # Corrupt everything strictly in the future relative to `cut`
     base_mut = base.copy()
@@ -61,10 +70,16 @@ def test_anti_lookahead_features_unchanged_when_future_mutated():
     daily_mut = daily.copy()
     daily_mut.loc[daily_mut["close_time_ms"] > cut_close_ms, "close"] *= 4.0
 
-    onchain_mut = onchain.copy()
-    onchain_mut.loc[onchain_mut["available_from_ms"] > cut_close_ms, ["active_addresses", "fear_greed", "stablecoin_mcap_usd"]] *= 5.0
+    deriv_mut = deriv.copy()
+    deriv_mut.loc[deriv_mut["timestamp_ms"] > cut_close_ms, ["oi_usd", "ls_ratio"]] *= 5.0
 
-    feats_mut = build_feature_matrix(base_mut, daily_klines=daily_mut, onchain_daily=onchain_mut)
+    onchain_mut = onchain.copy()
+    onchain_mut.loc[
+        onchain_mut["available_from_ms"] > cut_close_ms,
+        ["active_addresses", "fear_greed", "stablecoin_mcap_usd", "nasdaq_close", "dxy_close"],
+    ] *= 5.0
+
+    feats_mut = build_feature_matrix(base_mut, daily_klines=daily_mut, onchain_daily=onchain_mut, derivatives_df=deriv_mut)
 
     pd.testing.assert_frame_equal(
         feats_orig.loc[:cut, FEATURE_COLUMNS],

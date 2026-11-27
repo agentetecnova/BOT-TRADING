@@ -34,10 +34,14 @@ FEATURE_COLUMNS: List[str] = [
     "htf_1d_ret_7d",
     "htf_1d_ret_30d",
     "htf_1d_rsi_14",
-    # Derivatives funding sentiment
+    # Derivatives funding & OKX open interest / sentiment
     "funding_rate",
     "funding_z_30",
-    # Public blockchain / on-chain & liquidity
+    "oi_chg_24h_pct",
+    "oi_z_30",
+    "ls_ratio",
+    "ls_z_30",
+    # Public blockchain / on-chain & liquidity + Macro (Nasdaq, DXY)
     "onchain_addr_chg_7d",
     "onchain_addr_z_30d",
     "onchain_txval_z_30d",
@@ -46,6 +50,10 @@ FEATURE_COLUMNS: List[str] = [
     "onchain_stablecoin_chg_30d",
     "onchain_fear_greed",
     "onchain_fg_chg_7d",
+    "macro_nasdaq_ret_5d",
+    "macro_dxy_ret_5d",
+    # Structural regime feature
+    "regime_trend_strength",
 ]
 
 FEATURE_LABELS_ES: Dict[str, str] = {
@@ -77,6 +85,10 @@ FEATURE_LABELS_ES: Dict[str, str] = {
     "htf_1d_rsi_14": "RSI diario (1D)",
     "funding_rate": "Tasa de financiamiento futuros (Funding)",
     "funding_z_30": "Extremo de apalancamiento en Funding",
+    "oi_chg_24h_pct": "Cambio en Open Interest (24h)",
+    "oi_z_30": "Presión de contratos abiertos (Open Interest)",
+    "ls_ratio": "Ratio cuentas Long/Short (OKX)",
+    "ls_z_30": "Extremo de posicionamiento Long/Short",
     "onchain_addr_chg_7d": "Direcciones activas on-chain (cambio 7d)",
     "onchain_addr_z_30d": "Actividad de red BTC vs promedio 30d",
     "onchain_txval_z_30d": "Volumen transferido en blockchain (USD)",
@@ -85,6 +97,9 @@ FEATURE_LABELS_ES: Dict[str, str] = {
     "onchain_stablecoin_chg_30d": "Liquidez de stablecoins en mercado (30d)",
     "onchain_fear_greed": "Índice de Miedo y Codicia (Fear & Greed)",
     "onchain_fg_chg_7d": "Cambio semanal de sentimiento",
+    "macro_nasdaq_ret_5d": "Impulso Nasdaq últimos 5 días (Macro)",
+    "macro_dxy_ret_5d": "Fuerza del Dólar DXY últimos 5 días (Macro)",
+    "regime_trend_strength": "Fuerza de Tendencia vs Rango (EMA50/ATR)",
 }
 
 
@@ -167,6 +182,18 @@ def _prepare_onchain_features(onchain_daily: Optional[pd.DataFrame]) -> pd.DataF
         oc["onchain_fear_greed"] = np.nan
         oc["onchain_fg_chg_7d"] = np.nan
 
+    if "nasdaq_close" in oc.columns:
+        nq = pd.to_numeric(oc["nasdaq_close"], errors="coerce")
+        oc["macro_nasdaq_ret_5d"] = np.log(nq / nq.shift(5).replace(0.0, np.nan))
+    else:
+        oc["macro_nasdaq_ret_5d"] = np.nan
+
+    if "dxy_close" in oc.columns:
+        dxy = pd.to_numeric(oc["dxy_close"], errors="coerce")
+        oc["macro_dxy_ret_5d"] = np.log(dxy / dxy.shift(5).replace(0.0, np.nan))
+    else:
+        oc["macro_dxy_ret_5d"] = np.nan
+
     keep = [
         "available_from_ms",
         "onchain_addr_chg_7d",
@@ -177,6 +204,8 @@ def _prepare_onchain_features(onchain_daily: Optional[pd.DataFrame]) -> pd.DataF
         "onchain_stablecoin_chg_30d",
         "onchain_fear_greed",
         "onchain_fg_chg_7d",
+        "macro_nasdaq_ret_5d",
+        "macro_dxy_ret_5d",
     ]
     return oc[keep].dropna(subset=["available_from_ms"]).sort_values("available_from_ms").reset_index(drop=True)
 
@@ -186,6 +215,7 @@ def build_feature_matrix(
     daily_klines: Optional[pd.DataFrame] = None,
     funding_df: Optional[pd.DataFrame] = None,
     onchain_daily: Optional[pd.DataFrame] = None,
+    derivatives_df: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """
     Construct a causal, zero-look-ahead feature DataFrame indexed by `base_klines`.
@@ -212,6 +242,7 @@ def build_feature_matrix(
     df["ema_50_dist"] = (close - ema50) / ema50.replace(0.0, np.nan)
     df["ema_200_dist"] = (close - ema200) / ema200.replace(0.0, np.nan)
     df["ema_cross_21_50"] = (ema21 - ema50) / close.replace(0.0, np.nan)
+    df["regime_trend_strength"] = (close - ema50).abs() / df["atr_14"].replace(0.0, np.nan)
 
     sma20 = close.rolling(20, min_periods=10).mean()
     std20 = close.rolling(20, min_periods=10).std()
@@ -275,7 +306,41 @@ def build_feature_matrix(
         df["funding_rate"] = np.nan
         df["funding_z_30"] = np.nan
 
-    # 3. On-chain & stablecoin liquidity (available_from_ms <= close_time_ms)
+    # 3. OKX Open Interest & Long/Short history
+    if derivatives_df is not None and not derivatives_df.empty:
+        ddf = derivatives_df.sort_values("timestamp_ms").reset_index(drop=True).copy()
+        if "oi_usd" in ddf.columns:
+            oi = pd.to_numeric(ddf["oi_usd"], errors="coerce")
+            ddf["oi_chg_24h_pct"] = oi.pct_change(6)
+            oi_m = oi.rolling(30, min_periods=5).mean()
+            oi_s = oi.rolling(30, min_periods=5).std().replace(0.0, np.nan)
+            ddf["oi_z_30"] = (oi - oi_m) / oi_s
+        else:
+            ddf["oi_chg_24h_pct"] = np.nan
+            ddf["oi_z_30"] = np.nan
+
+        if "ls_ratio" in ddf.columns:
+            ls = pd.to_numeric(ddf["ls_ratio"], errors="coerce")
+            ddf["ls_ratio"] = ls
+            ls_m = ls.rolling(30, min_periods=5).mean()
+            ls_s = ls.rolling(30, min_periods=5).std().replace(0.0, np.nan)
+            ddf["ls_z_30"] = (ls - ls_m) / ls_s
+        else:
+            ddf["ls_ratio"] = np.nan
+            ddf["ls_z_30"] = np.nan
+
+        df = pd.merge_asof(
+            df,
+            ddf[["timestamp_ms", "oi_chg_24h_pct", "oi_z_30", "ls_ratio", "ls_z_30"]].rename(columns={"timestamp_ms": "deriv_ts"}),
+            left_on="close_time_ms",
+            right_on="deriv_ts",
+            direction="backward",
+        ).drop(columns=["deriv_ts"])
+    else:
+        for col in ("oi_chg_24h_pct", "oi_z_30", "ls_ratio", "ls_z_30"):
+            df[col] = np.nan
+
+    # 4. On-chain, stablecoin liquidity & Macro (available_from_ms <= close_time_ms)
     oc_ctx = _prepare_onchain_features(onchain_daily)
     if not oc_ctx.empty:
         df = pd.merge_asof(
@@ -295,6 +360,8 @@ def build_feature_matrix(
             "onchain_stablecoin_chg_30d",
             "onchain_fear_greed",
             "onchain_fg_chg_7d",
+            "macro_nasdaq_ret_5d",
+            "macro_dxy_ret_5d",
         ):
             df[col] = np.nan
 

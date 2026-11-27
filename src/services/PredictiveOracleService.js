@@ -286,7 +286,7 @@ class PredictiveOracleService {
 
     if (masterConsensus) {
       plainReasons.push(
-        `Consenso de 60 algoritmos: ${masterConsensus.longVotes} en compra vs ${masterConsensus.shortVotes} en venta (${verifiedLongs} ganadores de backtest en LONG / ${verifiedShorts} en SHORT).`
+        `Consenso de 70 algoritmos: ${masterConsensus.longVotes} en compra vs ${masterConsensus.shortVotes} en venta (${verifiedLongs} ganadores de backtest en LONG / ${verifiedShorts} en SHORT).`
       );
     }
 

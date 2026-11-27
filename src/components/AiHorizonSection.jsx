@@ -51,9 +51,16 @@ function HorizonCard({ data, isSwing }) {
     }}>
       {/* Encabezado de horizonte */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#e2e8f0' }}>
-          {badgeIcon} {data.labelEs}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#e2e8f0' }}>
+            {badgeIcon} {data.labelEs}
+          </span>
+          {data.regimeEs && (
+            <span style={{ fontSize: '0.64rem', color: '#93c5fd', background: 'rgba(59, 130, 246, 0.14)', padding: '0.1rem 0.4rem', borderRadius: '6px' }}>
+              {data.regimeEs}
+            </span>
+          )}
+        </div>
         <span style={{
           fontSize: '0.7rem',
           fontWeight: 800,
@@ -238,6 +245,21 @@ export default function AiHorizonSection({ aiSnapshot }) {
           {mempool.fastest_fee_sat && (
             <span style={{ padding: '0.18rem 0.45rem', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', color: '#cbd5e1' }}>
               Mempool: <b>{mempool.fastest_fee_sat} sat/vB</b>
+            </span>
+          )}
+          {oc.macro?.nasdaq5dPct !== null && oc.macro?.nasdaq5dPct !== undefined && (
+            <span style={{ padding: '0.18rem 0.45rem', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', color: oc.macro.nasdaq5dPct >= 0 ? '#34d399' : '#f87171' }}>
+              Nasdaq 5d: <b>{oc.macro.nasdaq5dPct >= 0 ? '+' : ''}{oc.macro.nasdaq5dPct}%</b>
+            </span>
+          )}
+          {oc.macro?.dxy5dPct !== null && oc.macro?.dxy5dPct !== undefined && (
+            <span style={{ padding: '0.18rem 0.45rem', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', color: oc.macro.dxy5dPct <= 0 ? '#34d399' : '#f87171' }}>
+              Dólar DXY 5d: <b>{oc.macro.dxy5dPct >= 0 ? '+' : ''}{oc.macro.dxy5dPct}%</b>
+            </span>
+          )}
+          {oc.okx?.lsRatio !== null && oc.okx?.lsRatio !== undefined && (
+            <span style={{ padding: '0.18rem 0.45rem', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', color: '#cbd5e1' }}>
+              OKX L/S: <b>{oc.okx.lsRatio}</b>
             </span>
           )}
         </div>

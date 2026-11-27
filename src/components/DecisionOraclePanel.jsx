@@ -1,5 +1,65 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import AiHorizonSection from './AiHorizonSection';
+
+function computeMasterTrafficLight(liveAction, aiSnapshot) {
+  const intra = aiSnapshot?.horizons?.intraday?.verdict || null;
+  const swing = aiSnapshot?.horizons?.swing?.verdict || null;
+  const aiVotes = [intra, swing].filter(v => v === 'LONG' || v === 'SHORT');
+
+  if (liveAction === 'ESPERAR' && aiVotes.length === 0) {
+    return {
+      emoji: '🔴',
+      title: 'NO OPERAR TODAVÍA — PROTEGER CAPITAL',
+      subtitle: 'Ni las estrategias en vivo ni la IA ven ventaja estadística neta en este precio.',
+      color: '#f87171',
+      bg: 'rgba(239, 68, 68, 0.10)',
+      border: 'rgba(239, 68, 68, 0.35)'
+    };
+  }
+
+  const hasConflict = (liveAction === 'LONG' && aiVotes.includes('SHORT')) || (liveAction === 'SHORT' && aiVotes.includes('LONG'));
+  if (hasConflict) {
+    return {
+      emoji: '🔴',
+      title: 'CONTRADICCIÓN ENTRE MOTORES — EVITAR ENTRADA',
+      subtitle: `Estrategias en vivo ven ${liveAction}, pero la IA apunta al lado opuesto. Mejor esperar acuerdo.`,
+      color: '#f87171',
+      bg: 'rgba(239, 68, 68, 0.12)',
+      border: 'rgba(239, 68, 68, 0.4)'
+    };
+  }
+
+  if ((liveAction === 'LONG' || liveAction === 'SHORT') && aiVotes.includes(liveAction)) {
+    return {
+      emoji: '🟢',
+      title: `LUZ VERDE TOTAL — ACUERDO EN ${liveAction}`,
+      subtitle: 'Las estrategias en vivo y la IA On-Chain coinciden en la misma dirección.',
+      color: '#10b981',
+      bg: 'rgba(16, 185, 129, 0.14)',
+      border: 'rgba(16, 185, 129, 0.45)'
+    };
+  }
+
+  if (liveAction === 'LONG' || liveAction === 'SHORT') {
+    return {
+      emoji: '🟡',
+      title: `SEÑAL DIVIDIDA (${liveAction} SOLO EN CORTO PLAZO)`,
+      subtitle: 'Las estrategias en vivo ven entrada, pero la IA On-Chain pide esperar. Opera con tamaño reducido o espera confirmación.',
+      color: '#fbbf24',
+      bg: 'rgba(245, 158, 11, 0.12)',
+      border: 'rgba(245, 158, 11, 0.4)'
+    };
+  }
+
+  return {
+    emoji: '🟡',
+    title: `SEÑAL DIVIDIDA (SOLO IA VE ${aiVotes[0]})`,
+    subtitle: 'La IA detecta sesgo favorable, pero el consenso en vivo aún espera ruptura.',
+    color: '#fbbf24',
+    bg: 'rgba(245, 158, 11, 0.12)',
+    border: 'rgba(245, 158, 11, 0.4)'
+  };
+}
 
 export default function DecisionOraclePanel({
   oracleData,
@@ -7,6 +67,27 @@ export default function DecisionOraclePanel({
   aiSnapshot,
   onSelectStrategy
 }) {
+  const [capitalUsd, setCapitalUsd] = useState(() => {
+    try {
+      const v = parseFloat(localStorage.getItem('btc_capital_usd_v1'));
+      return Number.isFinite(v) && v > 0 ? v : 1000;
+    } catch { return 1000; }
+  });
+  const [riskPct, setRiskPct] = useState(() => {
+    try {
+      const v = parseFloat(localStorage.getItem('btc_risk_pct_v1'));
+      return Number.isFinite(v) && v > 0 ? v : 1;
+    } catch { return 1; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('btc_capital_usd_v1', String(capitalUsd)); } catch {}
+  }, [capitalUsd]);
+
+  useEffect(() => {
+    try { localStorage.setItem('btc_risk_pct_v1', String(riskPct)); } catch {}
+  }, [riskPct]);
+
   const fmt = (n) => {
     if (typeof n !== 'number' || isNaN(n)) return '--';
     return Math.round(n).toLocaleString('en-US');
@@ -54,6 +135,29 @@ export default function DecisionOraclePanel({
 
   const isLong = action === 'LONG';
   const isShort = action === 'SHORT';
+  const trafficLight = computeMasterTrafficLight(action, aiSnapshot);
+
+  // Position sizing math based on Stop Loss distance
+  let sizing = null;
+  if (plan && plan.entry > 0 && plan.sl > 0 && capitalUsd > 0 && riskPct > 0) {
+    const slDistPct = Math.abs(plan.entry - plan.sl) / plan.entry;
+    if (slDistPct > 0) {
+      const maxLossUsd = capitalUsd * (riskPct / 100);
+      const posUsd = maxLossUsd / slDistPct;
+      const btcAmt = posUsd / plan.entry;
+      const tp1Usd = posUsd * (Math.abs(plan.tp1 - plan.entry) / plan.entry);
+      const tp2Usd = posUsd * (Math.abs(plan.tp2 - plan.entry) / plan.entry);
+      const lev = posUsd / capitalUsd;
+      sizing = {
+        maxLossUsd: maxLossUsd.toFixed(0),
+        posUsd: Math.round(posUsd),
+        btcAmt: btcAmt.toFixed(4),
+        tp1Usd: Math.round(tp1Usd),
+        tp2Usd: Math.round(tp2Usd),
+        levLabel: lev <= 1.02 ? 'Spot / 1x (sin apalancamiento)' : `Futuros ~${lev.toFixed(1)}x`
+      };
+    }
+  }
 
   return (
     <section className="glass-panel" style={{
@@ -67,8 +171,36 @@ export default function DecisionOraclePanel({
           : 'linear-gradient(135deg, rgba(245, 158, 11, 0.07) 0%, rgba(15, 23, 42, 0.92) 55%)',
       display: 'flex',
       flexDirection: 'column',
-      gap: '1.25rem'
+      gap: '1.15rem'
     }}>
+
+      {/* SEMÁFORO MAESTRO ÚNICO (CRUCE EN VIVO + IA ON-CHAIN) */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '0.6rem',
+        padding: '0.75rem 1rem',
+        borderRadius: '12px',
+        background: trafficLight.bg,
+        border: `1px solid ${trafficLight.border}`
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <span style={{ fontSize: '1.35rem' }}>{trafficLight.emoji}</span>
+          <div>
+            <div style={{ fontSize: '0.84rem', fontWeight: 900, color: trafficLight.color, letterSpacing: '0.3px' }}>
+              {trafficLight.title}
+            </div>
+            <div style={{ fontSize: '0.76rem', color: '#e2e8f0' }}>
+              {trafficLight.subtitle}
+            </div>
+          </div>
+        </div>
+        <span style={{ fontSize: '0.69rem', color: '#cbd5e1', background: 'rgba(0,0,0,0.28)', padding: '0.25rem 0.55rem', borderRadius: '8px', fontWeight: 700 }}>
+          Estrategias: {action} • IA: {aiSnapshot?.horizons?.intraday?.verdict || '--'} / {aiSnapshot?.horizons?.swing?.verdict || '--'}
+        </span>
+      </div>
 
       {/* FILA 1: VEREDICTO CLARO + PROBABILIDAD CALIBRADA */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
@@ -204,6 +336,56 @@ export default function DecisionOraclePanel({
               <div style={{ fontSize: '0.74rem', color: '#cbd5e1', background: 'rgba(0,0,0,0.2)', padding: '0.45rem 0.7rem', borderRadius: '8px' }}>
                 🛡️ <b>Cuándo salir antes:</b> {plan.invalidation}
               </div>
+
+              {/* CALCULADORA DE TAMAÑO EN USD */}
+              {sizing && (
+                <div style={{
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  borderRadius: '10px',
+                  padding: '0.6rem 0.75rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.45rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#93c5fd' }}>
+                      💰 ¿Cuánto poner según tu capital?
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', fontSize: '0.71rem' }}>
+                      <label style={{ color: '#cbd5e1' }}>
+                        Capital $:
+                        <input
+                          type="number"
+                          min="10"
+                          step="100"
+                          value={capitalUsd}
+                          onChange={(e) => setCapitalUsd(Math.max(10, Number(e.target.value) || 0))}
+                          style={{ width: '64px', marginLeft: '4px', padding: '0.15rem 0.3rem', borderRadius: '5px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', fontSize: '0.72rem' }}
+                        />
+                      </label>
+                      <label style={{ color: '#cbd5e1' }}>
+                        Riesgo %:
+                        <input
+                          type="number"
+                          min="0.2"
+                          max="10"
+                          step="0.5"
+                          value={riskPct}
+                          onChange={(e) => setRiskPct(Math.max(0.1, Math.min(20, Number(e.target.value) || 1)))}
+                          style={{ width: '48px', marginLeft: '4px', padding: '0.15rem 0.3rem', borderRadius: '5px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', fontSize: '0.72rem' }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#e2e8f0', lineHeight: '1.35' }}>
+                    Operar con <b style={{ color: '#fff' }}>${sizing.posUsd.toLocaleString('en-US')} USD</b> ({sizing.btcAmt} BTC • <span style={{ color: '#93c5fd' }}>{sizing.levLabel}</span>) →
+                    Si toca SL pierdes <b style={{ color: '#f87171' }}>-${sizing.maxLossUsd}</b> |
+                    TP1: <b style={{ color: '#34d399' }}>+${sizing.tp1Usd}</b> |
+                    TP2: <b style={{ color: '#00e676' }}>+${sizing.tp2Usd}</b>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>

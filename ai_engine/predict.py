@@ -22,6 +22,7 @@ from ai_engine.data.market_loader import (
     fetch_binance_klines,
     fetch_funding_history,
     fetch_futures_live_metrics,
+    fetch_okx_derivatives_history,
 )
 from ai_engine.data.onchain_loader import (
     fetch_combined_onchain_daily,
@@ -70,11 +71,14 @@ def _evaluate_horizon(
     daily_klines: pd.DataFrame,
     funding_df: pd.DataFrame,
     onchain_daily: pd.DataFrame,
+    derivatives_df: pd.DataFrame = None,
 ) -> Dict[str, Any]:
     spec = HORIZONS[horizon_key]
-    feat_df = build_feature_matrix(base_klines, daily_klines, funding_df, onchain_daily)
+    feat_df = build_feature_matrix(base_klines, daily_klines, funding_df, onchain_daily, derivatives_df=derivatives_df)
     latest = feat_df.iloc[-1]
     feature_cols = bundle["featureColumns"]
+    reg_val = float(latest.get("regime_trend_strength", 0.0)) if np.isfinite(latest.get("regime_trend_strength", np.nan)) else 0.0
+    regime_es = "Tendencia Fuerte" if reg_val >= 1.6 else "Rango / Equilibrio"
 
     x_vec = np.array([float(latest.get(c, np.nan)) for c in feature_cols], dtype=float).reshape(1, -1)
     p_long = float(bundle["longModel"].predict_proba(x_vec)[0, 1])
@@ -150,6 +154,7 @@ def _evaluate_horizon(
         "horizon": horizon_key,
         "labelEs": spec.label_es,
         "timeframe": spec.timeframe,
+        "regimeEs": regime_es,
         "lastCandleCloseUtc": pd.to_datetime(int(latest["close_time_ms"]), unit="ms", utc=True).isoformat(),
         "price": round(entry, 2),
         "verdict": verdict,
@@ -181,7 +186,17 @@ def generate_snapshot(
     k4h = fetch_binance_klines(SYMBOL, interval="4h", days=90)
     k1d = fetch_binance_klines(SYMBOL, interval="1d", days=120)
     funding = fetch_funding_history(SYMBOL, days=35)
-    onchain = fetch_combined_onchain_daily(start_date="2025-01-01")
+    deriv_1h = fetch_okx_derivatives_history(period="1H")
+    deriv_1d = fetch_okx_derivatives_history(period="1D")
+    derivatives = (
+        pd.concat([d for d in (deriv_1d, deriv_1h) if not d.empty], ignore_index=True)
+        .drop_duplicates(subset=["timestamp_ms"], keep="last")
+        .sort_values("timestamp_ms")
+        .reset_index(drop=True)
+        if (not deriv_1d.empty or not deriv_1h.empty)
+        else pd.DataFrame()
+    )
+    onchain = fetch_combined_onchain_daily(start_date="2025-01-01", timespan="1year")
     mempool = fetch_mempool_live()
     futures_live = fetch_futures_live_metrics(SYMBOL)
 
@@ -193,13 +208,30 @@ def generate_snapshot(
         if np.isfinite(st_now) and np.isfinite(st_prev) and st_prev > 0:
             latest_stables_chg_7d = round(((st_now - st_prev) / st_prev) * 100.0, 2)
 
+    macro_ctx = {"nasdaq5dPct": None, "dxy5dPct": None}
+    if not onchain.empty and len(onchain) >= 6:
+        for col, key_out in (("nasdaq_close", "nasdaq5dPct"), ("dxy_close", "dxy5dPct")):
+            if col in onchain.columns:
+                v_now = pd.to_numeric(onchain[col].iloc[-1], errors="coerce")
+                v_prev = pd.to_numeric(onchain[col].iloc[-6], errors="coerce")
+                if np.isfinite(v_now) and np.isfinite(v_prev) and v_prev > 0:
+                    macro_ctx[key_out] = round(((v_now - v_prev) / v_prev) * 100.0, 2)
+
+    okx_ctx = {"oiUsd": None, "lsRatio": None}
+    if not derivatives.empty:
+        last_d = derivatives.iloc[-1]
+        if pd.notna(last_d.get("oi_usd")):
+            okx_ctx["oiUsd"] = round(float(last_d["oi_usd"]), 0)
+        if pd.notna(last_d.get("ls_ratio")):
+            okx_ctx["lsRatio"] = round(float(last_d["ls_ratio"]), 2)
+
     horizons_out = {
-        "intraday": _evaluate_horizon("intraday", bundles["intraday"], k1h, k1d, funding, onchain),
-        "swing": _evaluate_horizon("swing", bundles["swing"], k4h, k1d, funding, onchain),
+        "intraday": _evaluate_horizon("intraday", bundles["intraday"], k1h, k1d, funding, onchain, derivatives_df=derivatives),
+        "swing": _evaluate_horizon("swing", bundles["swing"], k4h, k1d, funding, onchain, derivatives_df=derivatives),
     }
 
     snapshot = {
-        "schemaVersion": "1.0",
+        "schemaVersion": "1.1",
         "symbol": SYMBOL,
         "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
         "modelTrainedAtUtc": artifact.get("createdAtUtc"),
@@ -213,6 +245,8 @@ def generate_snapshot(
             "fearGreed": float(latest_oc["fear_greed"]) if isinstance(latest_oc, pd.Series) and pd.notna(latest_oc.get("fear_greed")) else None,
             "mempool": mempool,
             "futures": futures_live,
+            "macro": macro_ctx,
+            "okx": okx_ctx,
         },
         "horizons": horizons_out,
     }

@@ -68,7 +68,7 @@ export default function LiveTradesComponent({ signalsHistory = [], btcPrice, onS
             Sin Operaciones Abiertas en este Momento
           </div>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', maxWidth: '500px', margin: 0 }}>
-            Las 60 estrategias cuantitativas están escaneando activamente los libros de órdenes y velas de Bitcoin en espera de confirmaciones de alta probabilidad.
+            Las 70 estrategias cuantitativas están escaneando activamente los libros de órdenes y velas de Bitcoin en espera de confirmaciones de alta probabilidad.
           </p>
         </div>
       ) : (

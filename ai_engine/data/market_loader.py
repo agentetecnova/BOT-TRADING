@@ -16,6 +16,9 @@ FUTURES_FUNDING_URL = "https://fapi.binance.com/fapi/v1/fundingRate"
 FUTURES_OI_URL = "https://fapi.binance.com/fapi/v1/openInterest"
 FUTURES_TOP_LS_URL = "https://fapi.binance.com/futures/data/topLongShortAccountRatio"
 FUTURES_GLOBAL_LS_URL = "https://fapi.binance.com/futures/data/globalLongShortAccountRatio"
+OKX_FUNDING_URL = "https://www.okx.com/api/v5/public/funding-rate-history"
+OKX_OI_URL = "https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-volume"
+OKX_LS_URL = "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio"
 
 INTERVAL_MS = {
     "15m": 15 * 60 * 1000,
@@ -138,14 +141,77 @@ def fetch_funding_history(symbol: str = SYMBOL, days: int = 540, start_ms: Optio
     except Exception:
         pass
 
-    if not records:
-        return pd.DataFrame(columns=["timestamp_ms", "funding_rate", "open_time"])
+    if records:
+        df = pd.DataFrame(records)
+        df["timestamp_ms"] = df["fundingTime"].astype("int64")
+        df["funding_rate"] = df["fundingRate"].astype(float)
+        df["open_time"] = pd.to_datetime(df["timestamp_ms"], unit="ms", utc=True)
+        return df[["timestamp_ms", "open_time", "funding_rate"]].drop_duplicates(subset=["timestamp_ms"]).sort_values("timestamp_ms").reset_index(drop=True)
 
-    df = pd.DataFrame(records)
+    # US-friendly fallback: OKX BTC-USDT-SWAP funding rate history
+    okx_records = []
+    try:
+        after_param = None
+        for _ in range(max(1, (days * 3) // 100 + 1)):
+            params = {"instId": "BTC-USDT-SWAP", "limit": "100"}
+            if after_param:
+                params["after"] = str(after_param)
+            resp = sess.get(OKX_FUNDING_URL, params=params, timeout=12)
+            if resp.status_code != 200:
+                break
+            batch = resp.json().get("data", [])
+            if not batch:
+                break
+            okx_records.extend(batch)
+            oldest = int(batch[-1]["fundingTime"])
+            if start_ms and oldest <= start_ms:
+                break
+            after_param = oldest
+            time.sleep(0.08)
+    except Exception:
+        pass
+
+    if not okx_records:
+        return pd.DataFrame(columns=["timestamp_ms", "open_time", "funding_rate"])
+
+    df = pd.DataFrame(okx_records)
     df["timestamp_ms"] = df["fundingTime"].astype("int64")
     df["funding_rate"] = df["fundingRate"].astype(float)
     df["open_time"] = pd.to_datetime(df["timestamp_ms"], unit="ms", utc=True)
     return df[["timestamp_ms", "open_time", "funding_rate"]].drop_duplicates(subset=["timestamp_ms"]).sort_values("timestamp_ms").reset_index(drop=True)
+
+
+def fetch_okx_derivatives_history(period: str = "1H") -> pd.DataFrame:
+    """
+    Fetch global/US-accessible BTC Open Interest (USD) and Long/Short Account Ratio from OKX.
+    """
+    sess = _session()
+    oi_rows = []
+    ls_rows = []
+    try:
+        r_oi = sess.get(OKX_OI_URL, params={"ccy": "BTC", "period": period}, timeout=12)
+        if r_oi.status_code == 200:
+            for item in r_oi.json().get("data", []):
+                oi_rows.append({"timestamp_ms": int(item[0]), "oi_usd": float(item[1])})
+    except Exception:
+        pass
+    try:
+        r_ls = sess.get(OKX_LS_URL, params={"ccy": "BTC", "period": period}, timeout=12)
+        if r_ls.status_code == 200:
+            for item in r_ls.json().get("data", []):
+                ls_rows.append({"timestamp_ms": int(item[0]), "ls_ratio": float(item[1])})
+    except Exception:
+        pass
+
+    if not oi_rows and not ls_rows:
+        return pd.DataFrame(columns=["timestamp_ms", "open_time", "oi_usd", "ls_ratio"])
+
+    df_oi = pd.DataFrame(oi_rows) if oi_rows else pd.DataFrame(columns=["timestamp_ms", "oi_usd"])
+    df_ls = pd.DataFrame(ls_rows) if ls_rows else pd.DataFrame(columns=["timestamp_ms", "ls_ratio"])
+    merged = pd.merge(df_oi, df_ls, on="timestamp_ms", how="outer")
+    merged["timestamp_ms"] = merged["timestamp_ms"].astype("int64")
+    merged["open_time"] = pd.to_datetime(merged["timestamp_ms"], unit="ms", utc=True)
+    return merged.drop_duplicates(subset=["timestamp_ms"]).sort_values("timestamp_ms").reset_index(drop=True)
 
 
 def fetch_futures_live_metrics(symbol: str = SYMBOL) -> Dict[str, Optional[float]]:

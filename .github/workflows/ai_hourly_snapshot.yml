@@ -26,10 +26,18 @@ jobs:
       - name: Install AI Engine dependencies
         run: pip install -r ai_engine/requirements.txt
 
-      - name: Generate fresh BTCUSDT AI + On-Chain snapshot
+      - name: Load latest weekly-trained model if present on ai-snapshot branch
         run: |
           mkdir -p /tmp/ai_out
-          python -m ai_engine.predict --output /tmp/ai_out/ai_oracle_snapshot.json
+          if curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/ai-snapshot/btc_ai_models.joblib" -o /tmp/ai_out/btc_ai_models.joblib; then
+            echo "Using latest weekly retrained model from ai-snapshot branch"
+            MODEL_ARG="/tmp/ai_out/btc_ai_models.joblib"
+          else
+            echo "Using baseline model from main"
+            cp ai_engine/artifacts/btc_ai_models.joblib /tmp/ai_out/btc_ai_models.joblib
+            MODEL_ARG="ai_engine/artifacts/btc_ai_models.joblib"
+          fi
+          python -m ai_engine.predict --model "$MODEL_ARG" --output /tmp/ai_out/ai_oracle_snapshot.json
 
       - name: Publish lightweight snapshot to isolated ai-snapshot branch
         run: |
@@ -39,7 +47,8 @@ jobs:
           git rm -rf --cached . > /dev/null 2>&1 || true
           find . -maxdepth 1 ! -name '.' ! -name '.git' -exec rm -rf {} +
           cp /tmp/ai_out/ai_oracle_snapshot.json ai_oracle_snapshot.json
+          cp /tmp/ai_out/btc_ai_models.joblib btc_ai_models.joblib
           python -c 'import json; open("vercel.json","w").write(json.dumps({"git":{"deploymentEnabled":{"ai-snapshot":False}},"ignoreCommand":"exit 0"}, indent=2))'
-          git add ai_oracle_snapshot.json vercel.json
+          git add ai_oracle_snapshot.json btc_ai_models.joblib vercel.json
           git commit -m "chore(ai): hourly BTCUSDT snapshot [skip ci]"
           git push --force origin ai-snapshot-temp:ai-snapshot

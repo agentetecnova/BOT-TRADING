@@ -7,9 +7,6 @@ from typing import Any, Dict, List, Tuple
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.frozen import FrozenEstimator
 from sklearn.metrics import brier_score_loss, roc_auc_score
 
 from ai_engine.config import (
@@ -25,45 +22,15 @@ from ai_engine.data.store import MarketStore
 from ai_engine.features.feature_builder import FEATURE_COLUMNS, build_feature_matrix
 from ai_engine.features.labeling import label_triple_barrier
 from ai_engine.models.analog_finder import HistoricalAnalogFinder
-
-
-def _make_base_classifier() -> HistGradientBoostingClassifier:
-    return HistGradientBoostingClassifier(
-        learning_rate=0.03,
-        max_iter=180,
-        max_leaf_nodes=15,
-        min_samples_leaf=50,
-        l2_regularization=5.0,
-        early_stopping=True,
-        validation_fraction=0.15,
-        n_iter_no_change=15,
-        random_state=42,
-    )
-
-
-def _sanitize_for_boosting(x_mat: np.ndarray) -> np.ndarray:
-    """Replace any column that is 100% NaN in this training fold with 0.0 so binning never fails."""
-    clean = x_mat.copy()
-    all_nan_cols = np.all(~np.isfinite(clean), axis=0)
-    if np.any(all_nan_cols):
-        clean[:, all_nan_cols] = 0.0
-    return clean
+from ai_engine.models.regime_model import RegimeDualEnsemble
 
 
 def _fit_calibrated_classifier(x_train: np.ndarray, y_train: np.ndarray) -> Tuple[Any, np.ndarray]:
-    """Fit HistGradientBoosting on earlier 80% and calibrate probabilities on chronological tail 20%."""
-    n = len(x_train)
-    split = int(n * 0.80)
-    base = _make_base_classifier()
-    if split >= 120 and (n - split) >= 60 and len(np.unique(y_train[split:])) == 2 and len(np.unique(y_train[:split])) == 2:
-        x_fit = _sanitize_for_boosting(x_train[:split])
-        base.fit(x_fit, y_train[:split])
-        cal = CalibratedClassifierCV(FrozenEstimator(base), method="sigmoid")
-        cal.fit(_sanitize_for_boosting(x_train[split:]), y_train[split:])
-        return cal, base.predict_proba(_sanitize_for_boosting(x_train))[:, 1]
-    x_fit = _sanitize_for_boosting(x_train)
-    base.fit(x_fit, y_train)
-    return base, base.predict_proba(x_fit)[:, 1]
+    """Fit RegimeDualEnsemble (global GBDT + L2 linear + Trending/Ranging specialists)."""
+    regime_idx = FEATURE_COLUMNS.index("regime_trend_strength")
+    model = RegimeDualEnsemble(regime_col_idx=regime_idx, trend_threshold=1.6)
+    model.fit(x_train, y_train)
+    return model, model.predict_proba(x_train)[:, 1]
 
 
 def _simulate_non_overlapping_trades(
@@ -146,7 +113,7 @@ def _walk_forward_evaluate(
             continue
 
         model, _ = _fit_calibrated_classifier(x_all[:train_end], y_all[:train_end])
-        oos_probs[test_start:test_end] = model.predict_proba(_sanitize_for_boosting(x_all[test_start:test_end]))[:, 1]
+        oos_probs[test_start:test_end] = model.predict_proba(x_all[test_start:test_end])[:, 1]
 
     mask = np.isfinite(oos_probs) & np.isfinite(y_all) & np.isfinite(net_rets)
     if mask.sum() < 40 or len(np.unique(y_all[mask])) < 2:
@@ -167,6 +134,7 @@ def train_horizon_bundle(
     daily_klines: pd.DataFrame,
     funding_df: pd.DataFrame,
     onchain_daily: pd.DataFrame,
+    derivatives_df: pd.DataFrame = None,
 ) -> Dict[str, Any]:
     """Build features + Triple Barrier labels, run Walk-Forward validation, and train final LONG/SHORT models."""
     feat_df = build_feature_matrix(
@@ -174,6 +142,7 @@ def train_horizon_bundle(
         daily_klines=daily_klines,
         funding_df=funding_df,
         onchain_daily=onchain_daily,
+        derivatives_df=derivatives_df,
     )
     labeled = label_triple_barrier(
         feat_df,
@@ -238,6 +207,7 @@ def train_all_models(output_path: Path = ARTIFACTS_DIR / "btc_ai_models.joblib")
     k4h = store.load_dataframe("klines_4h")
     k1d = store.load_dataframe("klines_1d")
     funding = store.load_dataframe("funding_rates")
+    derivatives = store.load_dataframe("derivatives_history")
     onchain = store.load_dataframe("onchain_daily")
 
     if k1h.empty or k4h.empty or k1d.empty:
@@ -246,7 +216,7 @@ def train_all_models(output_path: Path = ARTIFACTS_DIR / "btc_ai_models.joblib")
     bundles = {}
     for key, spec in HORIZONS.items():
         base_df = k1h if spec.timeframe == "1h" else k4h
-        bundles[key] = train_horizon_bundle(spec, base_df, k1d, funding, onchain)
+        bundles[key] = train_horizon_bundle(spec, base_df, k1d, funding, onchain, derivatives_df=derivatives)
 
     payload = {
         "version": "1.0",

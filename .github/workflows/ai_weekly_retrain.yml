@@ -1,0 +1,51 @@
+name: AI Weekly Model Retrain
+
+on:
+  schedule:
+    # Runs every Sunday at 02:15 UTC (zero Vercel builds triggered)
+    - cron: "15 2 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  retrain-ai-models:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (main)
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "ai_engine/requirements.txt"
+
+      - name: Install AI Engine dependencies
+        run: pip install -r ai_engine/requirements.txt
+
+      - name: Sync full market + OKX derivatives + On-Chain + Macro history
+        run: python -m ai_engine.data.sync_data --mode full
+
+      - name: Retrain Regime-Aware Walk-Forward models
+        run: |
+          mkdir -p /tmp/ai_out
+          python -m ai_engine.models.walkforward_trainer
+          cp ai_engine/artifacts/btc_ai_models.joblib /tmp/ai_out/btc_ai_models.joblib
+          python -m ai_engine.predict --model /tmp/ai_out/btc_ai_models.joblib --output /tmp/ai_out/ai_oracle_snapshot.json
+
+      - name: Publish updated model & snapshot to isolated ai-snapshot branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan ai-snapshot-temp
+          git rm -rf --cached . > /dev/null 2>&1 || true
+          find . -maxdepth 1 ! -name '.' ! -name '.git' -exec rm -rf {} +
+          cp /tmp/ai_out/ai_oracle_snapshot.json ai_oracle_snapshot.json
+          cp /tmp/ai_out/btc_ai_models.joblib btc_ai_models.joblib
+          python -c 'import json; open("vercel.json","w").write(json.dumps({"git":{"deploymentEnabled":{"ai-snapshot":False}},"ignoreCommand":"exit 0"}, indent=2))'
+          git add ai_oracle_snapshot.json btc_ai_models.joblib vercel.json
+          git commit -m "chore(ai): weekly model retrain + snapshot [skip ci]"
+          git push --force origin ai-snapshot-temp:ai-snapshot
