@@ -1,0 +1,8 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "ai-snapshot": false
+    }
+  },
+  "ignoreCommand": "exit 0"
+}
